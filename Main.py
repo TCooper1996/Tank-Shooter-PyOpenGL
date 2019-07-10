@@ -3,7 +3,7 @@ from cyglfw3 import *
 from Game import Game
 
 
-def key_callback(window, key, _, action, _2):
+def key_callback(window, key, _scancode, action, _mods):
     if key == KEY_ESCAPE and action == PRESS:
         SetWindowShouldClose(window, GL_TRUE)
 
@@ -14,8 +14,16 @@ def key_callback(window, key, _, action, _2):
             game.Keys[key] = GL_FALSE
 
 
-SCREEN_WIDTH = 800
-SCREEN_HEIGHT = 600
+def mouse_button_callback(_window, button, action, _mods):
+    if button == MOUSE_BUTTON_LEFT:
+        if action == PRESS:
+            game.mouse_buttons[button] = GL_TRUE
+        elif action == RELEASE:
+            game.mouse_buttons[button] = GL_FALSE
+
+
+SCREEN_WIDTH = 1000
+SCREEN_HEIGHT = 800
 
 
 game = Game(SCREEN_WIDTH, SCREEN_HEIGHT)
@@ -32,8 +40,10 @@ def main():
     window = CreateWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "Tank Shooter", None, None)
     glViewport(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT)
     MakeContextCurrent(window)
+    SwapInterval(1)
 
     SetKeyCallback(window, key_callback)
+    SetMouseButtonCallback(window, mouse_button_callback)
 
     glLineWidth(2)
     glEnable(GL_MULTISAMPLE)
@@ -42,7 +52,7 @@ def main():
 
     clear_color = [float(1) for _ in range(4)]
 
-    game.Init()
+    game.load_resources()
 
     while not WindowShouldClose(window):
         current_frame = GetTime()
@@ -51,7 +61,8 @@ def main():
         PollEvents()
 
         # Process input
-        game.ProcessInput(delta_time)
+        game.set_mouse_position(GetCursorPos(window))
+        game.process_input(delta_time)
         # Update state
 
         # Clear screen

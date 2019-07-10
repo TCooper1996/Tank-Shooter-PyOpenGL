@@ -1,6 +1,14 @@
 from collections import namedtuple
 import pyrr
 import numpy as np
+import enum
+
+
+class Role(enum.Enum):
+    PROJECTILE = 0,
+    ACTOR = 1,
+    BARRIER = 2,
+
 
 bufferData = namedtuple("bufferData", "vertexBuffer indexBuffer")
 colorData = {"RED": np.array([1, 0, 0], dtype=np.float32),
@@ -12,7 +20,8 @@ colorData = {"RED": np.array([1, 0, 0], dtype=np.float32),
 class Entity:
     basis_arrays = {}
 
-    def __init__(self, sides, radius, pos):
+    def __init__(self, role, sides, radius, pos):
+        self.role = role
         self.sides = sides
         self.radius = radius
         self.pos = pos

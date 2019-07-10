@@ -4,21 +4,32 @@ import numpy as np
 from ResourceManager import *
 from Renderer import Renderer
 from Tank import Tank
+from Entity import Role
 
 
 class Game:
 
     def __init__(self, width, height):
+        self.player_values = {
+            "role": Role.ACTOR,
+            "sides": 3,
+            "radius": 25,
+            "pos": [300, 300],
+            "max_health": 100,
+            "max_damage": 100,
+            "max_velocity": 300
+        }
         self.Keys = [False] * 1024
+        self.mouse_buttons = [False] * 3
         self.Width = width
         self.Height = height
-        self.PLAYER_VELOCITY = 500
-        self.player = Tank(100, 100, 5)
+        self.player = Tank(**self.player_values)
         self.entities = [self.player]
         self.keyLocked = False
+        self.mouse_locked = False
         self.renderer = None
 
-    def Init(self):
+    def load_resources(self):
         ResourceManager.load_shader("vertex.glsl", "fragment.glsl", "sprite")
         projection = pyrr.matrix44.create_orthogonal_projection(float(0), float(self.Width), float(0),
                                                                 float(self.Height), float(-1), float(1))
@@ -26,8 +37,8 @@ class Game:
         ResourceManager.get_shader("sprite").set_matrix("projection", projection)
         self.renderer = Renderer(ResourceManager.get_shader("sprite"))
 
-    def ProcessInput(self, dt):
-        velocity = self.PLAYER_VELOCITY * dt
+    def process_input(self, dt):
+        velocity = self.player_values["max_velocity"] * dt
         next_x, next_y = 0, 0
         walk = self.Keys[KEY_W] != self.Keys[KEY_S]
         turn = self.Keys[KEY_A] != self.Keys[KEY_D]
@@ -40,7 +51,7 @@ class Game:
                 next_y = np.sin(self.player.Rotation) * velocity
 
             new_vertices = self.player.calc_final_vertices(x_offset=next_x, y_offset=next_y, r_offset=turn_angle)
-            collisions = [self.checkOverlap(new_vertices, other.get_vertices())
+            collisions = [self.check_overlap(new_vertices, other.get_vertices())
                           for other in self.entities if self.player != other]
             if not any(collisions):
                 self.player.set_vertices(new_vertices)
@@ -48,9 +59,15 @@ class Game:
 
         if self.Keys[KEY_SPACE] and not self.keyLocked:
             self.player.set_color("RED")
+            print(self.renderer.mouse_position)
             self.keyLocked = True
         if not self.Keys[KEY_SPACE]:
             self.keyLocked = False
+
+        if self.mouse_buttons[MOUSE_BUTTON_LEFT] and not self.mouse_locked:
+            self.mouse_locked = True
+        if not self.mouse_buttons[MOUSE_BUTTON_LEFT]:
+            self.mouse_locked = False
 
     def update(self, dt):
         self.DoCollisionsSAT()
@@ -60,7 +77,7 @@ class Game:
             g.draw(self.renderer)
 
     # Returns bool defined by collision
-    def checkOverlap(self, vertices1, vertices2):
+    def check_overlap(self, vertices1, vertices2):
         # Closure returns list of normalized np vectors
         def obtainAxes(vertices):
             vertSize = len(vertices)
@@ -116,6 +133,10 @@ class Game:
         for i in range(len(self.entities)):
             polygon1 = self.entities[i]
             polygon2 = self.entities[(i + 1) % len(self.entities)]
-            if polygon1 != polygon2 and self.checkOverlap(polygon1.get_vertices(), polygon2.get_vertices()):
+            if polygon1 != polygon2 and self.check_overlap(polygon1.get_vertices(), polygon2.get_vertices()):
                 polygon1.set_color("GREEN")
                 polygon2.set_color("GREEN")
+
+    def set_mouse_position(self, position):
+        correct_position = (position[0], self.Height - position[1])
+        self.renderer.mouse_position = correct_position
