@@ -15,6 +15,23 @@ class Renderer:
         self.init_render_data()
         self.mouse_position = (-1, -1)
 
+    def draw_cannon(self, pos, cannon_angle):
+        cannon_float_array = np.array([
+            pos[0], pos[1],  # Center
+            pos[0] + np.cos(cannon_angle) * 35,  # Cannon endpoint x
+            pos[1] + np.sin(cannon_angle) * 35  # Cannon endpoint y
+        ], dtype=np.float32)
+
+        # Configure cannon VBO
+        glBindBuffer(GL_ARRAY_BUFFER, self.VBO)
+        glBufferData(GL_ARRAY_BUFFER, cannon_float_array, GL_DYNAMIC_DRAW)
+
+        # Configure cannon IBO
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, self.cannonIBO)
+
+        glBindVertexArray(self.quadVAO)
+        glDrawElements(GL_LINES, 2, GL_UNSIGNED_INT, None)
+
     def draw_polygon(self, polygon: Entity):
         vertex_float_list = polygon.get_vertices()
         index_list = Entity.basis_arrays[polygon.sides].indexBuffer
@@ -32,22 +49,6 @@ class Renderer:
         glBindVertexArray(self.quadVAO)
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, self.IBO)
         glDrawElements(GL_LINES, len(index_list), GL_UNSIGNED_INT, None)
-
-        if polygon.role == Role.ACTOR:
-            cannon_angle = np.arctan2(self.mouse_position[1] - polygon.pos[1],
-                                      self.mouse_position[0] - polygon.pos[0])
-            cannon_float_array = np.array([
-                polygon.pos[0], polygon.pos[1],  # Center
-                polygon.pos[0] + np.cos(cannon_angle) * 35,  # Cannon endpoint x
-                polygon.pos[1] + np.sin(cannon_angle) * 35  # Cannon endpoint y
-            ], dtype=np.float32)
-            # Configure cannon VBO
-            glBindBuffer(GL_ARRAY_BUFFER, self.VBO)
-            glBufferData(GL_ARRAY_BUFFER, cannon_float_array, GL_DYNAMIC_DRAW)
-
-            # Configure cannon IBO
-            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, self.cannonIBO)
-            glDrawElements(GL_LINES, 4, GL_UNSIGNED_INT, None)
         glBindVertexArray(0)
 
     def init_render_data(self):

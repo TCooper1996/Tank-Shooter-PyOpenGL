@@ -1,6 +1,7 @@
 from OpenGL.GL import *
 from cyglfw3 import *
 from Game import Game
+import GameConstants
 
 
 def key_callback(window, key, _scancode, action, _mods):
@@ -22,9 +23,8 @@ def mouse_button_callback(_window, button, action, _mods):
             game.mouse_buttons[button] = GL_FALSE
 
 
-SCREEN_WIDTH = 1000
-SCREEN_HEIGHT = 800
-
+SCREEN_WIDTH = GameConstants.SCREEN_WIDTH
+SCREEN_HEIGHT = GameConstants.SCREEN_HEIGHT
 
 game = Game(SCREEN_WIDTH, SCREEN_HEIGHT)
 
@@ -64,6 +64,7 @@ def main():
         game.set_mouse_position(GetCursorPos(window))
         game.process_input(delta_time)
         # Update state
+        game.update(delta_time)
 
         # Clear screen
         glClearColor(*clear_color)

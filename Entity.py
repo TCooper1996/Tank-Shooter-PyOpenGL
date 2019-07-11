@@ -1,4 +1,6 @@
+from abc import ABC, abstractmethod
 from collections import namedtuple
+import GameConstants
 import pyrr
 import numpy as np
 import enum
@@ -11,13 +13,9 @@ class Role(enum.Enum):
 
 
 bufferData = namedtuple("bufferData", "vertexBuffer indexBuffer")
-colorData = {"RED": np.array([1, 0, 0], dtype=np.float32),
-             "BLACK": np.array([0, 0, 0], dtype=np.float32),
-             "GREEN": np.array([0, 1, 0], dtype=np.float32),
-             }
 
 
-class Entity:
+class Entity(ABC):
     basis_arrays = {}
 
     def __init__(self, role, sides, radius, pos):
@@ -25,17 +23,23 @@ class Entity:
         self.sides = sides
         self.radius = radius
         self.pos = pos
-        self.color = colorData["BLACK"]
+        self.color = GameConstants.COLORS["BLACK"]
         self.Rotation = 0
         if sides not in Entity.basis_arrays:
             self.init_buffer_data()
         self.__vertex_value_array = self.calc_final_vertices()
+        super().__init__()
 
+    @abstractmethod
     def draw(self, renderer):
-        renderer.draw_polygon(self)
+        raise NotImplementedError
+
+    @abstractmethod
+    def update(self, dt):
+        raise NotImplementedError
 
     def set_color(self, color):
-        self.color = colorData[color]
+        self.color = GameConstants.COLORS[color]
 
     def init_buffer_data(self):
         # Define size of vertex and index array
@@ -85,7 +89,6 @@ class Entity:
     def set_vertices(self, vertices):
         self.__vertex_value_array = vertices
 
-    def add_position(self, x, y, a):
-        self.pos[0] += x
-        self.pos[1] += y
+    def add_position(self, x, y, a=0):
+        self.pos = (self.pos[0] + x, self.pos[1] + y)
         self.Rotation += a

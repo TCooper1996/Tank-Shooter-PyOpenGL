@@ -66,11 +66,13 @@ class Game:
 
         if self.mouse_buttons[MOUSE_BUTTON_LEFT] and not self.mouse_locked:
             self.mouse_locked = True
+            self.player.on_click()
         if not self.mouse_buttons[MOUSE_BUTTON_LEFT]:
             self.mouse_locked = False
 
     def update(self, dt):
         self.DoCollisionsSAT()
+        self.player.update(dt)
 
     def render(self):
         for g in self.entities:
@@ -110,7 +112,6 @@ class Game:
             return min_, max_
         #  This is the main code for checkOverlap
         #  The final (origin) vertex must be removed
-        # TODO: make sure this does not mutate original list
         vertices1 = vertices1[:-2]
         vertices2 = vertices2[:-2]
         axes1 = obtainAxes(vertices1)
@@ -129,7 +130,7 @@ class Game:
             if polygon != self.player:
                 polygon.set_color("BLACK")
             else:
-                polygon.set_color("RED")
+                polygon.set_color("BLUE")
         for i in range(len(self.entities)):
             polygon1 = self.entities[i]
             polygon2 = self.entities[(i + 1) % len(self.entities)]
@@ -140,3 +141,5 @@ class Game:
     def set_mouse_position(self, position):
         correct_position = (position[0], self.Height - position[1])
         self.renderer.mouse_position = correct_position
+        self.player.cannon_angle = np.arctan2(correct_position[1] - self.player.pos[1],
+                                              correct_position[0] - self.player.pos[0])
