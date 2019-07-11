@@ -3,16 +3,15 @@ import pyrr
 import numpy as np
 from ResourceManager import *
 from Renderer import Renderer
+from Entity import Entity, Role
 from Tank import Tank
-from Entity import Role
+from Turret import Turret
 
 
 class Game:
 
     def __init__(self, width, height):
         self.player_values = {
-            "role": Role.ACTOR,
-            "sides": 3,
             "radius": 25,
             "pos": [300, 300],
             "max_health": 100,
@@ -24,7 +23,8 @@ class Game:
         self.Width = width
         self.Height = height
         self.player = Tank(**self.player_values)
-        self.entities = [self.player]
+        self.enemy = Turret(25, [600, 500], 100, 100, 300)
+        Entity.game_state["entities"] = [self.player, self.enemy]
         self.keyLocked = False
         self.mouse_locked = False
         self.renderer = None
@@ -52,7 +52,7 @@ class Game:
 
             new_vertices = self.player.calc_final_vertices(x_offset=next_x, y_offset=next_y, r_offset=turn_angle)
             collisions = [self.check_overlap(new_vertices, other.get_vertices())
-                          for other in self.entities if self.player != other]
+                          for other in Entity.game_state["entities"] if self.player != other]
             if not any(collisions):
                 self.player.set_vertices(new_vertices)
                 self.player.add_position(next_x, next_y, turn_angle)
@@ -70,12 +70,14 @@ class Game:
         if not self.mouse_buttons[MOUSE_BUTTON_LEFT]:
             self.mouse_locked = False
 
-    def update(self, dt):
+    def update(self, dt, mouse_position):
+        # Get correct mouse position
+        Entity.game_state["mouse_position"] = (mouse_position[0], self.Height - mouse_position[1])
+        Entity.game_state["player_position"] = self.player.pos
         self.DoCollisionsSAT()
-        self.player.update(dt)
 
     def render(self):
-        for g in self.entities:
+        for g in Entity.game_state["entities"]:
             g.draw(self.renderer)
 
     # Returns bool defined by collision
@@ -126,20 +128,10 @@ class Game:
         return True
 
     def DoCollisionsSAT(self):
-        for polygon in self.entities:
-            if polygon != self.player:
-                polygon.set_color("BLACK")
-            else:
-                polygon.set_color("BLUE")
-        for i in range(len(self.entities)):
-            polygon1 = self.entities[i]
-            polygon2 = self.entities[(i + 1) % len(self.entities)]
+
+        for i in range(len(Entity.game_state["entities"])):
+            polygon1 = Entity.game_state["entities"][i]
+            polygon2 = Entity.game_state["entities"][(i + 1) % len(Entity.game_state["entities"])]
             if polygon1 != polygon2 and self.check_overlap(polygon1.get_vertices(), polygon2.get_vertices()):
                 polygon1.set_color("GREEN")
                 polygon2.set_color("GREEN")
-
-    def set_mouse_position(self, position):
-        correct_position = (position[0], self.Height - position[1])
-        self.renderer.mouse_position = correct_position
-        self.player.cannon_angle = np.arctan2(correct_position[1] - self.player.pos[1],
-                                              correct_position[0] - self.player.pos[0])

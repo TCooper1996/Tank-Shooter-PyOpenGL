@@ -61,10 +61,9 @@ def main():
         PollEvents()
 
         # Process input
-        game.set_mouse_position(GetCursorPos(window))
         game.process_input(delta_time)
         # Update state
-        game.update(delta_time)
+        game.update(delta_time, GetCursorPos(window))
 
         # Clear screen
         glClearColor(*clear_color)

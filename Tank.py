@@ -1,16 +1,14 @@
-from Entity import Entity
+from Entity import Entity, Role
 from Bullet import Bullet
-import GameConstants
+import numpy as np
 
 
 class Tank(Entity):
-    def __init__(self, role, sides, radius, pos, max_health, max_damage, max_velocity):
-        super().__init__(role=role, sides=sides, radius=radius, pos=pos)
+    def __init__(self, radius, pos, max_health, max_damage, max_velocity):
+        super().__init__(role=Role.ACTOR, sides=3, radius=radius, pos=pos)
         self.max_health = max_health
         self.max_damage = max_damage
         self.max_velocity = max_velocity
-        self.bullets = []
-        self.cannon_angle = (-1, -1)
 
     def draw(self, renderer):
         renderer.draw_polygon(self)
@@ -19,12 +17,11 @@ class Tank(Entity):
             bullet.draw(renderer)
 
     def update(self, dt):
-        for bullet in self.bullets:
-            if 0 < bullet.pos[0] < GameConstants.SCREEN_WIDTH and 0 < bullet.pos[1] < GameConstants.SCREEN_HEIGHT:
-                bullet.update(dt)
-            else:
-                self.bullets.remove(bullet)
-                del bullet
+        mouse_x, mouse_y = Entity.game_state["mouse_position"]
+        x_distance = mouse_x - self.pos[0]
+        y_distance = mouse_y - self.pos[1]
+        self.cannon_angle = np.arctan2(y_distance, x_distance)
+        self.update_bullets(dt)
 
     def on_click(self):
         self.bullets.append(Bullet(self.pos, self.cannon_angle))

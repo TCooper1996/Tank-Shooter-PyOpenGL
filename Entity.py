@@ -17,6 +17,9 @@ bufferData = namedtuple("bufferData", "vertexBuffer indexBuffer")
 
 class Entity(ABC):
     basis_arrays = {}
+    game_state ={"player_position": None,
+                 "mouse_position": None,
+                 "entities": []}
 
     def __init__(self, role, sides, radius, pos):
         self.role = role
@@ -25,6 +28,12 @@ class Entity(ABC):
         self.pos = pos
         self.color = GameConstants.COLORS["BLACK"]
         self.Rotation = 0
+        if role == Role.ACTOR:
+            self.bullets = []
+            self.cannon_angle = None
+            self.max_health = None
+            self.max_damage = None
+            self.max_velocity = None
         if sides not in Entity.basis_arrays:
             self.init_buffer_data()
         self.__vertex_value_array = self.calc_final_vertices()
@@ -92,3 +101,11 @@ class Entity(ABC):
     def add_position(self, x, y, a=0):
         self.pos = (self.pos[0] + x, self.pos[1] + y)
         self.Rotation += a
+
+    def update_bullets(self, dt):
+        for bullet in self.bullets:
+            if 0 < bullet.pos[0] < GameConstants.SCREEN_WIDTH and 0 < bullet.pos[1] < GameConstants.SCREEN_HEIGHT:
+                bullet.update(dt)
+            else:
+                self.bullets.remove(bullet)
+                del bullet
