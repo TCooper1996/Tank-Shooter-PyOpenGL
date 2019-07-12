@@ -76,25 +76,31 @@ class Game:
         # Get correct mouse position
         self.mouse_position = (mouse_position[0], self.Height - mouse_position[1])
         Game.game_state["player_position"] = self.player.pos
-        self.handle_collisions()
+        handle_collisions()
         for entity in Game.game_state["entities"]:
-            entity.update(dt)
+            if entity.active:
+                entity.update(dt)
+            else:
+                Game.game_state["entities"].remove(entity)
 
     def render(self):
         for g in Game.game_state["entities"]:
             g.draw(self.renderer)
 
-    def handle_collisions(self):
-
-        for i in range(len(Game.game_state["entities"])):
-            polygon1 = Game.game_state["entities"][i]
-            polygon2 = Game.game_state["entities"][(i + 1) % len(Game.game_state["entities"])]
-            if polygon1 != polygon2 and check_overlap(polygon1.get_vertices(), polygon2.get_vertices()):
-                polygon1.set_color("GREEN")
-                polygon2.set_color("GREEN")
-
     def get_mouse(self):
         return self.mouse_position
+
+
+# TODO: Optimize handle_collisions; this looks ugly
+def handle_collisions():
+    for actor in Game.game_state["entities"]:
+        # Grab all projectiles in game. all_projectiles will be a list of lists
+        all_bullets = [entity.bullets for entity in Game.game_state["entities"] if entity.role is Role.ACTOR]
+        # Filter out all bullets friendly to the current actor and flatten list.
+        hostile_bullets = [bullet for bullets in all_bullets for bullet in bullets if bullet.is_friendly != actor.is_friendly]
+        for projectile in hostile_bullets:
+            if check_overlap(actor.get_vertices(), projectile.get_vertices()):
+                actor.collisions.append(projectile)
 
 
 # Returns bool defined by collision

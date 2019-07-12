@@ -28,6 +28,9 @@ class Entity(ABC):
         self.pos = pos
         self.color = GameConstants.COLORS["BLACK"]
         self.Rotation = 0
+        self.collision_checked = False
+        self.collisions = []
+        self.active = True
         if role == Role.ACTOR:
             self.bullets = []
             self.cannon_angle = None
@@ -46,6 +49,7 @@ class Entity(ABC):
     @abstractmethod
     def update(self, dt):
         raise NotImplementedError
+
 
     def set_color(self, color):
         self.color = GameConstants.COLORS[color]
@@ -104,7 +108,7 @@ class Entity(ABC):
 
     def update_bullets(self, dt):
         for bullet in self.bullets:
-            if 0 < bullet.pos[0] < GameConstants.SCREEN_WIDTH and 0 < bullet.pos[1] < GameConstants.SCREEN_HEIGHT:
+            if 0 < bullet.pos[0] < GameConstants.SCREEN_WIDTH and 0 < bullet.pos[1] < GameConstants.SCREEN_HEIGHT and bullet.active:
                 bullet.update(dt)
             else:
                 self.bullets.remove(bullet)
@@ -115,8 +119,10 @@ class Tank(Entity):
     def __init__(self, radius, pos, max_health, max_damage, max_velocity):
         super().__init__(role=Role.ACTOR, sides=3, radius=radius, pos=pos)
         self.max_health = max_health
+        self.health = self.max_health
         self.max_damage = max_damage
         self.max_velocity = max_velocity
+        self.is_friendly = True
 
     def draw(self, renderer):
         renderer.draw_polygon(self)
@@ -130,17 +136,28 @@ class Tank(Entity):
         y_distance = mouse_y - self.pos[1]
         self.cannon_angle = np.arctan2(y_distance, x_distance)
         self.update_bullets(dt)
+        # Check incoming hits
+        for bullet in self.collisions:
+            self.health -= 10
+            bullet.active = False
+            self.collisions.remove(bullet)
+
+        # Check current health
+        if self.health <= 0:
+            self.active = False
 
     def on_click(self):
-        self.bullets.append(Bullet(self.pos, self.cannon_angle))
+        self.bullets.append(Bullet(self.pos, self.cannon_angle, True))
 
 
 class Turret(Entity):
     def __init__(self, radius, pos, max_health, max_damage, max_velocity):
         super().__init__(role=Role.ACTOR, sides=10, radius=radius, pos=pos)
         self.max_health = max_health
+        self.health = self.max_health
         self.max_damage = max_damage
         self.max_velocity = max_velocity
+        self.is_friendly = False
 
     def draw(self, renderer):
         renderer.draw_polygon(self)
@@ -154,21 +171,21 @@ class Turret(Entity):
         self.cannon_angle = np.arctan2(y_distance, x_distance)
         # Update bullets
         self.update_bullets(dt)
-
-
-super_params = {
-    "role": Role.PROJECTILE,
-    "sides": 8,
-    "radius": 8,
-    "pos": [],
-}
+        # Check incoming hits
+        for bullet in self.collisions:
+            self.health -= 10
+            bullet.active = False
+            self.collisions.remove(bullet)
+        # Check current health
+        if self.health <= 0:
+            self.active = False
 
 
 class Bullet(Entity):
-    def __init__(self, pos, angle):
-        super_params["pos"] = pos
+    def __init__(self, pos, angle, is_friendly):
         super().__init__(role=Role.PROJECTILE, sides=8, radius=8, pos=pos)
         self.angle = angle
+        self.is_friendly = is_friendly
         self.velocity = 500
 
     def draw(self, renderer):
