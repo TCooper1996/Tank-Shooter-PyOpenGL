@@ -1,9 +1,11 @@
+import enum
 from abc import ABC, abstractmethod
 from collections import namedtuple
-import GameConstants
-import pyrr
+
 import numpy as np
-import enum
+import pyrr
+
+import GameConstants
 
 
 class Role(enum.Enum):
@@ -17,9 +19,7 @@ bufferData = namedtuple("bufferData", "vertexBuffer indexBuffer")
 
 class Entity(ABC):
     basis_arrays = {}
-    game_state ={"player_position": None,
-                 "mouse_position": None,
-                 "entities": []}
+    game = None
 
     def __init__(self, role, sides, radius, pos):
         self.role = role
@@ -109,3 +109,75 @@ class Entity(ABC):
             else:
                 self.bullets.remove(bullet)
                 del bullet
+
+
+class Tank(Entity):
+    def __init__(self, radius, pos, max_health, max_damage, max_velocity):
+        super().__init__(role=Role.ACTOR, sides=3, radius=radius, pos=pos)
+        self.max_health = max_health
+        self.max_damage = max_damage
+        self.max_velocity = max_velocity
+
+    def draw(self, renderer):
+        renderer.draw_polygon(self)
+        renderer.draw_cannon(self.pos, self.cannon_angle)
+        for bullet in self.bullets:
+            bullet.draw(renderer)
+
+    def update(self, dt):
+        mouse_x, mouse_y = Entity.game.mouse_position
+        x_distance = mouse_x - self.pos[0]
+        y_distance = mouse_y - self.pos[1]
+        self.cannon_angle = np.arctan2(y_distance, x_distance)
+        self.update_bullets(dt)
+
+    def on_click(self):
+        self.bullets.append(Bullet(self.pos, self.cannon_angle))
+
+
+class Turret(Entity):
+    def __init__(self, radius, pos, max_health, max_damage, max_velocity):
+        super().__init__(role=Role.ACTOR, sides=10, radius=radius, pos=pos)
+        self.max_health = max_health
+        self.max_damage = max_damage
+        self.max_velocity = max_velocity
+
+    def draw(self, renderer):
+        renderer.draw_polygon(self)
+        renderer.draw_cannon(self.pos, self.cannon_angle)
+
+    def update(self, dt):
+        # Set cannon angle
+        player_pos = self.game.game_state["player_position"]
+        x_distance = player_pos[0] - self.pos[0]
+        y_distance = player_pos[1] - self.pos[1]
+        self.cannon_angle = np.arctan2(y_distance, x_distance)
+        # Update bullets
+        self.update_bullets(dt)
+
+
+super_params = {
+    "role": Role.PROJECTILE,
+    "sides": 8,
+    "radius": 8,
+    "pos": [],
+}
+
+
+class Bullet(Entity):
+    def __init__(self, pos, angle):
+        super_params["pos"] = pos
+        super().__init__(role=Role.PROJECTILE, sides=8, radius=8, pos=pos)
+        self.angle = angle
+        self.velocity = 500
+
+    def draw(self, renderer):
+        renderer.draw_polygon(self)
+
+    def update(self, dt):
+        # Update movement
+        next_x = np.cos(self.angle) * self.velocity * dt
+        next_y = np.sin(self.angle) * self.velocity * dt
+        new_vertices = self.calc_final_vertices(next_x, next_y)
+        self.set_vertices(new_vertices)
+        self.add_position(next_x, next_y)
