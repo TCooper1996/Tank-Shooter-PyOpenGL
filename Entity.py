@@ -162,6 +162,8 @@ class Turret(Entity):
     def draw(self, renderer):
         renderer.draw_polygon(self)
         renderer.draw_cannon(self.pos, self.cannon_angle)
+        for bullet in self.bullets:
+            bullet.draw(renderer)
 
     def update(self, dt):
         # Set cannon angle
@@ -169,6 +171,8 @@ class Turret(Entity):
         x_distance = player_pos[0] - self.pos[0]
         y_distance = player_pos[1] - self.pos[1]
         self.cannon_angle = np.arctan2(y_distance, x_distance)
+        # Attack
+        self.attack()
         # Update bullets
         self.update_bullets(dt)
         # Check incoming hits
@@ -179,6 +183,10 @@ class Turret(Entity):
         # Check current health
         if self.health <= 0:
             self.active = False
+
+    def attack(self):
+        if len(self.bullets) < 5:
+            self.bullets.append(Bullet(self.pos, self.cannon_angle, False))
 
 
 class Bullet(Entity):
