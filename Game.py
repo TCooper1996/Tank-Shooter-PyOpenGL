@@ -1,3 +1,5 @@
+import json
+
 from cyglfw3 import *
 
 from Entity import *
@@ -6,27 +8,23 @@ from ResourceManager import *
 
 
 class Game:
-    game_state = {}
+    game_state = {"entities": []}
 
     def __init__(self, width, height):
-        self.player_values = {
-            "radius": 25,
-            "pos": [300, 300],
-            "max_health": 100,
-            "max_damage": 100,
-            "max_velocity": 300
-        }
+        self.active = True
         self.Keys = [False] * 1024
         self.mouse_buttons = [False] * 3
         self.Width = width
         self.Height = height
-        self.player = Tank(**self.player_values)
-        self.enemy = Turret(25, [600, 500], 100, 100, 300)
         # Health bars are not correctly drawn until a bullet is drawn. I have no idea why this is.
         # The bullet created below will be immediately destroyed by the game since it is outside
         # TODO: find out why rendering a bullet is required for health bars to draw
         # the boundary, but it must still exist for at least one update cycle for the health bars to render.
-        Game.game_state["entities"] = [self.player, self.enemy, Bullet([-10, -10], 0, False)]
+        self.load_level(1)
+        b = Bullet([500, 450], 0, False, 10)
+        b.velocity = 0
+        self.player = Game.game_state["entities"][0]
+        self.player.bullets.append(b)
         self.keyLocked = False
         self.mouse_locked = False
         self.renderer = None
@@ -41,8 +39,8 @@ class Game:
         ResourceManager.get_shader("sprite").set_matrix("projection", projection)
         self.renderer = Renderer(ResourceManager.get_shader("sprite"))
 
-    def process_input(self, dt):
-        velocity = self.player_values["max_velocity"] * dt
+    def process_input(self, _dt):
+        velocity = self.player.max_velocity
         next_x, next_y = 0, 0
         walk = self.Keys[KEY_W] != self.Keys[KEY_S]
         turn = self.Keys[KEY_A] != self.Keys[KEY_D]
@@ -57,7 +55,7 @@ class Game:
                 next_y = np.sin(self.player.Rotation) * velocity
 
             new_vertices = self.player.calc_final_vertices(x_offset=next_x, y_offset=next_y, r_offset=turn_angle)
-            collisions = [check_overlap(new_vertices, other.get_vertices())
+            collisions = [check_overlap(new_vertices, other.get_raw_vertices())
                           for other in Game.game_state["entities"] if self.player != other]
             if not any(collisions):
                 self.player.set_vertices(new_vertices)
@@ -76,7 +74,10 @@ class Game:
         if not self.mouse_buttons[MOUSE_BUTTON_LEFT]:
             self.mouse_locked = False
 
-    def update(self, dt, mouse_position):
+    def update(self, _dt, mouse_position):
+        # Check player status
+        if not self.player.active:
+            self.active = False
         # Get correct mouse position
         self.mouse_position = (mouse_position[0], self.Height - mouse_position[1])
         Game.game_state["player_position"] = self.player.pos
@@ -94,17 +95,38 @@ class Game:
     def get_mouse(self):
         return self.mouse_position
 
+    def load_level(self, index):
+        # Make sure the player is the first object created
+        with open("levels/Level{0}.json".format(index)) as level:
+            level = json.load(level)
+            entities = level["Entities"]
+            for entity in entities:
+                class_name = entity[0]
+                if class_name == "Tank":
+                    Game.game_state["entities"].append(Tank(*entity[1:]))
+                elif class_name == "Turret":
+                    Game.game_state["entities"].append(Turret(*entity[1:]))
+                elif class_name == "Barrier":
+                    Game.game_state["entities"].append(Barrier(*entity[1:]))
+                else:
+                    raise ValueError("Unknown class: {0}".format(class_name))
+
 
 # TODO: Optimize handle_collisions; this looks ugly
 def handle_collisions():
     for actor in Game.game_state["entities"]:
-        # Grab all projectiles in game. all_projectiles will be a list of lists
-        all_bullets = [entity.bullets for entity in Game.game_state["entities"] if entity.role is Role.ACTOR]
-        # Filter out all bullets friendly to the current actor and flatten list.
-        hostile_bullets = [bullet for bullets in all_bullets for bullet in bullets if bullet.is_friendly != actor.is_friendly]
-        for projectile in hostile_bullets:
-            if check_overlap(actor.get_vertices(), projectile.get_vertices()):
-                actor.collisions.append(projectile)
+        if isinstance(actor, (Combatant, Barrier)):
+            # Grab all projectiles in game. all_projectiles will be a list of lists
+            all_bullets = [entity.bullets for entity in Game.game_state["entities"] if isinstance(entity, Combatant)]
+            # Filter out all bullets friendly to the current actor and flatten list.
+            if isinstance(actor, Combatant):
+                hostile_bullets = [bullet for bullets in all_bullets for bullet in bullets if bullet.is_friendly != actor.is_friendly]
+            # If the object is not a combatant, then all bullets will be tested against it.
+            else:
+                hostile_bullets = [bullet for bullets in all_bullets for bullet in bullets]
+            for projectile in hostile_bullets:
+                if check_overlap(actor.get_raw_vertices(), projectile.get_raw_vertices()):
+                    actor.collisions.append(projectile)
 
 
 # Returns bool defined by collision
@@ -140,10 +162,14 @@ def check_overlap(vertices1, vertices2):
                 max_ = product
         return min_, max_
 
-    #  This is the main code for checkOverlap
-    #  The final (origin) vertex must be removed
-    vertices1 = vertices1[:-2]
-    vertices2 = vertices2[:-2]
+    # This is the main code for checkOverlap
+    # First check if collision with wall
+    for i in range(0, len(vertices1), 2):
+        if not 0 <= vertices1[i] <= GameConstants.SCREEN_WIDTH:
+            return True
+        if not 0 <= vertices1[i + 1] <= GameConstants.SCREEN_HEIGHT:
+            return True
+
     axes1 = obtain_axes(vertices1)
     axes2 = obtain_axes(vertices2)
     for axis in axes1 + axes2:

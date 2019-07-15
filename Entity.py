@@ -1,4 +1,3 @@
-import enum
 from abc import ABC, abstractmethod
 from random import uniform
 
@@ -8,17 +7,10 @@ import pyrr
 import GameConstants
 
 
-class Role(enum.Enum):
-    PROJECTILE = 0,
-    ACTOR = 1,
-    BARRIER = 2,
-
-
 class Entity(ABC):
     game = None
 
-    def __init__(self, role, sides, radius, pos):
-        self.role = role
+    def __init__(self, sides, radius, pos):
         self.sides = sides
         self.radius = radius
         self.pos = pos
@@ -65,6 +57,12 @@ class Entity(ABC):
     # This method takes the basis vertices, adds the z dimension (necessary for transformation math), performs the trans
     # /formation, and then removes the z dimension.
     def calc_final_vertices(self, x_offset=0, y_offset=0, r_offset=0):
+        # If the object is a combatant, it will have a center vertex, which means the number of vertices it has will
+        # be sides + 1. The condition below assures that only combatants and bullets have the extra vertex.
+        if isinstance(self, (Combatant, Bullet)):
+            num_of_extra_vertices = 1
+        else:
+            num_of_extra_vertices = 0
         model_tran = pyrr.matrix44.create_from_translation(np.array([self.pos[0] + x_offset, self.pos[1] + y_offset, 0],
                                                                     dtype=np.float32))
         model_rot = pyrr.matrix44.create_from_axis_rotation(np.array([0, 0, 1], dtype=np.float32),
@@ -81,14 +79,19 @@ class Entity(ABC):
         vertex_value_array = np.resize(vertex_value_array, (len(vertex_value_array) // 3, 3))
         #  Apply transformation matrix on each vector
         vertex_value_array = [pyrr.matrix44.apply_to_vector(model_final, vertex_value_array[i])
-                              for i in range(self.sides + 1)]
+                              for i in range(self.sides + num_of_extra_vertices)]
         #  Remove the dummy z values
         vertex_value_array = [vector[0:2] for vector in vertex_value_array]
         #  Flatten list of arrays and return
         return np.array(vertex_value_array).flatten()
 
-    def get_vertices(self):
+    # Include center vertex
+    def get_render_vertices(self):
         return np.copy(self.__vertex_value_array)
+
+    # Exclude center vertex. Use this when checking for collisions
+    def get_raw_vertices(self):
+        return np.copy(self.__vertex_value_array[:-2])
 
     def set_vertices(self, vertices):
         self.__vertex_value_array = np.copy(vertices)
@@ -102,15 +105,16 @@ class Entity(ABC):
 
 
 class Combatant(Entity):
-    def __init__(self, role, sides, radius, pos):
-        super(Combatant, self).__init__(role, sides, radius, pos)
+    def __init__(self, sides, radius, pos, max_damage, max_health):
+        super(Combatant, self).__init__(sides, radius, pos)
         self.bullets = []
         self.cannon_angle = None
-        self.max_health = None
+        self.max_health = max_health
         self.health = self.max_health
-        self.max_damage = None
+        self.max_damage = max_damage
         self.damage = self.max_damage
         self.max_velocity = None
+        self.is_friendly = None
 
     def draw(self, renderer):
         renderer.draw_polygon(self)
@@ -134,7 +138,7 @@ class Combatant(Entity):
     def handle_collisions(self):
         for bullet in self.collisions:
             if bullet.active:
-                self.health -= 10
+                self.health -= bullet.damage
                 bullet.active = False
                 self.collisions.remove(bullet)
 
@@ -145,10 +149,11 @@ class Combatant(Entity):
 
 class Tank(Combatant):
     def __init__(self, radius, pos, max_health, max_damage, max_velocity):
-        super().__init__(role=Role.ACTOR, sides=3, radius=radius, pos=pos)
+        super().__init__(sides=3, radius=radius, pos=pos, max_health=max_health, max_damage=max_damage)
         self.max_health = max_health
         self.health = self.max_health
         self.max_damage = max_damage
+        self.damage = max_damage
         self.max_velocity = max_velocity
         self.is_friendly = True
 
@@ -156,6 +161,8 @@ class Tank(Combatant):
         super().draw(renderer)
 
     def update(self):
+        if self.max_damage == None:
+            print("tank")
         super().update()
         mouse_x, mouse_y = Entity.game.mouse_position
         x_distance = mouse_x - self.pos[0]
@@ -163,16 +170,15 @@ class Tank(Combatant):
         self.cannon_angle = np.arctan2(y_distance, x_distance)
 
     def on_click(self):
-        self.bullets.append(Bullet(self.pos, self.cannon_angle, True))
+        self.bullets.append(Bullet(self.pos, self.cannon_angle, True, self.damage))
 
 
 class Turret(Combatant):
-    def __init__(self, radius, pos, max_health, max_damage, max_velocity):
-        super().__init__(role=Role.ACTOR, sides=10, radius=radius, pos=pos)
+    def __init__(self, radius, pos, max_health, max_damage):
+        super().__init__(sides=10, radius=radius, pos=pos, max_health=max_health, max_damage=max_damage)
         self.max_health = max_health
         self.health = self.max_health
         self.max_damage = max_damage
-        self.max_velocity = max_velocity
         self.is_friendly = False
         self.ticks_since_attack = 0
 
@@ -195,17 +201,20 @@ class Turret(Combatant):
             self.ticks_since_attack = 0
             for i in range(5):
                 bullet_direction = self.cannon_angle + uniform(-np.pi/8, np.pi/8)
-                self.bullets.append(Bullet(self.pos, bullet_direction, False))
+                self.bullets.append(Bullet(self.pos, bullet_direction, False, self.damage))
 
 
 class Bullet(Entity):
-    def __init__(self, pos, angle, is_friendly):
-        super().__init__(role=Role.PROJECTILE, sides=8, radius=8, pos=pos)
+    def __init__(self, pos, angle, is_friendly, damage):
+        super().__init__(sides=8, radius=8, pos=pos)
         self.angle = angle
         self.is_friendly = is_friendly
         self.velocity = 10
+        self.damage = damage
 
     def draw(self, renderer):
+        if self.damage == None:
+            print("asd")
         renderer.draw_polygon(self)
 
     def update(self):
@@ -215,3 +224,40 @@ class Bullet(Entity):
         new_vertices = self.calc_final_vertices(next_x, next_y)
         self.set_vertices(new_vertices)
         self.add_position(next_x, next_y)
+
+
+class Barrier(Entity):
+    def __init__(self, pos, width, height, rotation=0):
+        self.width = width
+        self.height = height
+        super().__init__(4, None, pos)
+        self.rotation = rotation
+        self.init_buffer_data()
+        self.__vertex_value_array = self.calc_final_vertices()
+
+    def draw(self, renderer):
+        renderer.draw_polygon(self)
+
+    def update(self):
+        for entity in self.collisions:
+            if isinstance(entity, Bullet):
+                print(entity.pos)
+                entity.active = False
+                self.collisions.remove(entity)
+
+    def init_buffer_data(self):
+        vertices = [0, 0,
+                    self.width, 0,
+                    self.width, self.height,
+                    0, self.height
+                    ]
+        indices = [0, 1, 1, 2, 2, 3, 3, 0]
+
+        self.basis_array = vertices
+        self.__index_array = indices
+
+    def get_indices(self):
+        return np.array([0, 1, 1, 2, 2, 3, 3, 0], dtype=np.uint32)
+
+    def get_raw_vertices(self):
+        return np.copy(self.__vertex_value_array)

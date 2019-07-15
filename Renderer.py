@@ -34,7 +34,7 @@ class Renderer:
         glDrawElements(GL_LINES, 2, GL_UNSIGNED_INT, None)
 
     def draw_polygon(self, polygon: Entity):
-        vertex_float_array = polygon.get_vertices()
+        vertex_float_array = polygon.get_render_vertices()
         index_array = polygon.get_indices()
 
         # Configure VBO
@@ -73,7 +73,6 @@ class Renderer:
 
             glDrawElements(GL_LINES, len(index_array), GL_UNSIGNED_INT, None)
 
-
     def init_render_data(self):
         self.quadVAO = glGenVertexArrays(1)
         self.VBO = glGenBuffers(1)
@@ -90,7 +89,7 @@ class Renderer:
 
         # Transformation is unused; identity matrix
         final_model = pyrr.matrix44.create_identity(np.float32)
-        self.shader.set_matrix("model", final_model)  # False parameter is a guess
+        self.shader.set_matrix("model", final_model)
 
         glBindBuffer(GL_ARRAY_BUFFER, 0)
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0)

@@ -1,7 +1,8 @@
 from OpenGL.GL import *
 from cyglfw3 import *
-from Game import Game
+
 import GameConstants
+from Game import Game
 
 
 def key_callback(window, key, _scancode, action, _mods):
@@ -54,7 +55,7 @@ def main():
 
     game.load_resources()
 
-    while not WindowShouldClose(window):
+    while game.active and not WindowShouldClose(window):
         current_frame = GetTime()
         delta_time = current_frame - last_frame
         last_frame = current_frame
