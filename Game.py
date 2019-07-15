@@ -22,7 +22,11 @@ class Game:
         self.Height = height
         self.player = Tank(**self.player_values)
         self.enemy = Turret(25, [600, 500], 100, 100, 300)
-        Game.game_state["entities"] = [self.player, self.enemy]
+        # Health bars are not correctly drawn until a bullet is drawn. I have no idea why this is.
+        # The bullet created below will be immediately destroyed by the game since it is outside
+        # TODO: find out why rendering a bullet is required for health bars to draw
+        # the boundary, but it must still exist for at least one update cycle for the health bars to render.
+        Game.game_state["entities"] = [self.player, self.enemy, Bullet([-10, -10], 0, False)]
         self.keyLocked = False
         self.mouse_locked = False
         self.renderer = None

@@ -1,6 +1,6 @@
 import enum
 from abc import ABC, abstractmethod
-from collections import namedtuple
+from random import uniform
 
 import numpy as np
 import pyrr
@@ -14,11 +14,7 @@ class Role(enum.Enum):
     BARRIER = 2,
 
 
-bufferData = namedtuple("bufferData", "vertexBuffer indexBuffer")
-
-
 class Entity(ABC):
-    basis_arrays = {}
     game = None
 
     def __init__(self, role, sides, radius, pos):
@@ -31,14 +27,9 @@ class Entity(ABC):
         self.collision_checked = False
         self.collisions = []
         self.active = True
-        if role == Role.ACTOR:
-            self.bullets = []
-            self.cannon_angle = None
-            self.max_health = None
-            self.max_damage = None
-            self.max_velocity = None
-        if sides not in Entity.basis_arrays:
-            self.init_buffer_data()
+        self.basis_array = []
+        self.__index_array = []
+        self.init_buffer_data()
         self.__vertex_value_array = self.calc_final_vertices()
         super().__init__()
 
@@ -49,7 +40,6 @@ class Entity(ABC):
     @abstractmethod
     def update(self, dt):
         raise NotImplementedError
-
 
     def set_color(self, color):
         self.color = GameConstants.COLORS[color]
@@ -69,7 +59,8 @@ class Entity(ABC):
         indices = np.array([(i + 1) // 2 for i in range(num_of_indices)], dtype=np.uint32)
         # Connect last vertex to origin, then connect last vertex to first real vertex
         indices[-4], indices[-3], indices[-2], indices[-1] = (num_of_indices // 2 - 2), 0, 0, (num_of_indices // 2) - 1
-        Entity.basis_arrays[self.sides] = bufferData(vertices, indices)
+        self.basis_array = vertices
+        self.__index_array = indices
 
     # This method takes the basis vertices, adds the z dimension (necessary for transformation math), performs the trans
     # /formation, and then removes the z dimension.
@@ -81,7 +72,7 @@ class Entity(ABC):
         model_final = pyrr.matrix44.multiply(model_rot, model_tran)
 
         #  Copy basis arrays (which are actually lists) to local var to avoid mutation.
-        vertex_value_list = Entity.basis_arrays[self.sides].vertexBuffer.copy()
+        vertex_value_list = self.basis_array.copy()
         #  Add 0 to every third position to add a z axis
         for i in range(len(vertex_value_list) // 2):  # VertexArraySize // 2 because that is our number of vertices
             vertex_value_list.insert(i * 3 + 2, 0)
@@ -97,14 +88,40 @@ class Entity(ABC):
         return np.array(vertex_value_array).flatten()
 
     def get_vertices(self):
-        return self.__vertex_value_array
+        return np.copy(self.__vertex_value_array)
 
     def set_vertices(self, vertices):
-        self.__vertex_value_array = vertices
+        self.__vertex_value_array = np.copy(vertices)
+
+    def get_indices(self):
+        return np.copy(self.__index_array)
 
     def add_position(self, x, y, a=0):
         self.pos = (self.pos[0] + x, self.pos[1] + y)
         self.Rotation += a
+
+
+class Combatant(Entity):
+    def __init__(self, role, sides, radius, pos):
+        super(Combatant, self).__init__(role, sides, radius, pos)
+        self.bullets = []
+        self.cannon_angle = None
+        self.max_health = None
+        self.health = self.max_health
+        self.max_damage = None
+        self.damage = self.max_damage
+        self.max_velocity = None
+
+    def draw(self, renderer):
+        renderer.draw_polygon(self)
+        renderer.draw_cannon(self.pos, self.cannon_angle)
+        for bullet in self.bullets:
+            bullet.draw(renderer)
+
+    def update(self, dt):
+        self.update_bullets(dt)
+        self.handle_collisions()
+        self.check_status()
 
     def update_bullets(self, dt):
         for bullet in self.bullets:
@@ -114,8 +131,18 @@ class Entity(ABC):
                 self.bullets.remove(bullet)
                 del bullet
 
+    def handle_collisions(self):
+        for bullet in self.collisions:
+            self.health -= 10
+            bullet.active = False
+            self.collisions.remove(bullet)
 
-class Tank(Entity):
+    def check_status(self):
+        if self.health <= 0:
+            self.active = False
+
+
+class Tank(Combatant):
     def __init__(self, radius, pos, max_health, max_damage, max_velocity):
         super().__init__(role=Role.ACTOR, sides=3, radius=radius, pos=pos)
         self.max_health = max_health
@@ -125,32 +152,20 @@ class Tank(Entity):
         self.is_friendly = True
 
     def draw(self, renderer):
-        renderer.draw_polygon(self)
-        renderer.draw_cannon(self.pos, self.cannon_angle)
-        for bullet in self.bullets:
-            bullet.draw(renderer)
+        super().draw(renderer)
 
     def update(self, dt):
+        super().update(dt)
         mouse_x, mouse_y = Entity.game.mouse_position
         x_distance = mouse_x - self.pos[0]
         y_distance = mouse_y - self.pos[1]
         self.cannon_angle = np.arctan2(y_distance, x_distance)
-        self.update_bullets(dt)
-        # Check incoming hits
-        for bullet in self.collisions:
-            self.health -= 10
-            bullet.active = False
-            self.collisions.remove(bullet)
-
-        # Check current health
-        if self.health <= 0:
-            self.active = False
 
     def on_click(self):
         self.bullets.append(Bullet(self.pos, self.cannon_angle, True))
 
 
-class Turret(Entity):
+class Turret(Combatant):
     def __init__(self, radius, pos, max_health, max_damage, max_velocity):
         super().__init__(role=Role.ACTOR, sides=10, radius=radius, pos=pos)
         self.max_health = max_health
@@ -158,35 +173,29 @@ class Turret(Entity):
         self.max_damage = max_damage
         self.max_velocity = max_velocity
         self.is_friendly = False
+        self.time_since_attack = 0
 
     def draw(self, renderer):
-        renderer.draw_polygon(self)
-        renderer.draw_cannon(self.pos, self.cannon_angle)
-        for bullet in self.bullets:
-            bullet.draw(renderer)
+        super().draw(renderer)
 
     def update(self, dt):
+        super().update(dt)
+        self.time_since_attack += dt
         # Set cannon angle
         player_pos = self.game.game_state["player_position"]
         x_distance = player_pos[0] - self.pos[0]
         y_distance = player_pos[1] - self.pos[1]
         self.cannon_angle = np.arctan2(y_distance, x_distance)
         # Attack
+        #TODO: uncomment this
         self.attack()
-        # Update bullets
-        self.update_bullets(dt)
-        # Check incoming hits
-        for bullet in self.collisions:
-            self.health -= 10
-            bullet.active = False
-            self.collisions.remove(bullet)
-        # Check current health
-        if self.health <= 0:
-            self.active = False
 
     def attack(self):
-        if len(self.bullets) < 5:
-            self.bullets.append(Bullet(self.pos, self.cannon_angle, False))
+        if self.time_since_attack >= 2.0:
+            self.time_since_attack = 0
+            for i in range(5):
+                bullet_direction = self.cannon_angle + uniform(-np.pi/8, np.pi/8)
+                self.bullets.append(Bullet(self.pos, bullet_direction, False))
 
 
 class Bullet(Entity):

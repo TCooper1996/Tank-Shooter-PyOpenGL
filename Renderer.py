@@ -1,7 +1,8 @@
 import pyrr
-import numpy as np
 from OpenGL.GL import *
-from Entity import Entity, Role
+
+from Entity import Entity, Combatant
+from GameConstants import *
 
 
 class Renderer:
@@ -33,23 +34,40 @@ class Renderer:
         glDrawElements(GL_LINES, 2, GL_UNSIGNED_INT, None)
 
     def draw_polygon(self, polygon: Entity):
-        vertex_float_list = polygon.get_vertices()
-        index_list = Entity.basis_arrays[polygon.sides].indexBuffer
+        vertex_float_array = polygon.get_vertices()
+        index_array = polygon.get_indices()
 
         # Configure VBO
         glBindBuffer(GL_ARRAY_BUFFER, self.VBO)
-        glBufferData(GL_ARRAY_BUFFER, vertex_float_list, GL_DYNAMIC_DRAW)
+        glBufferData(GL_ARRAY_BUFFER, vertex_float_array, GL_DYNAMIC_DRAW)
 
         # Configure IBO
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, self.IBO)
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER, index_list, GL_DYNAMIC_DRAW)
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, index_array, GL_DYNAMIC_DRAW)
 
-        self.shader.set_vector("spriteColor", polygon.color)  # False parameter is a guess
+        self.shader.set_vector("spriteColor", polygon.color)
 
         glBindVertexArray(self.quadVAO)
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, self.IBO)
-        glDrawElements(GL_LINES, len(index_list), GL_UNSIGNED_INT, None)
+        glDrawElements(GL_LINES, len(index_array), GL_UNSIGNED_INT, None)
         glBindVertexArray(0)
+
+        # Draw health bar for combatants
+        if isinstance(polygon, Combatant):
+            # The hardcoded values below are meant to be relative to the object being draw.
+            vertex_float_array = HEALTH_BAR_COORDINATES.copy()
+            # Increase all x values by objects x
+            for i in range(0, 8, 2):
+                vertex_float_array[i] += polygon.pos[0]
+            # Same for y values
+            for i in range(1, 8, 2):
+                vertex_float_array[i] += polygon.pos[1]
+            vertex_float_array = np.array(vertex_float_array, dtype=np.float32)
+            index_array = np.array([0, 1, 1, 2, 2, 3, 3, 0], dtype=np.uint32)
+
+            glBufferData(GL_ARRAY_BUFFER, vertex_float_array, GL_DYNAMIC_DRAW)
+            glBufferData(GL_ELEMENT_ARRAY_BUFFER, index_array, GL_DYNAMIC_DRAW)
+            glBindVertexArray(self.quadVAO)
+            glDrawElements(GL_LINES, len(index_array), GL_UNSIGNED_INT, None)
 
     def init_render_data(self):
         self.quadVAO = glGenVertexArrays(1)

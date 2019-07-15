@@ -9,3 +9,4 @@ COLORS = {"RED": np.array([1, 0, 0], dtype=np.float32),
           "BLUE": np.array([0, 0, 1], dtype=np.float32),
          }
 
+HEALTH_BAR_COORDINATES = [-30, -25, -30, -35, 30, -35, 30, -25]
