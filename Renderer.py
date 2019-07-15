@@ -55,10 +55,13 @@ class Renderer:
         if isinstance(polygon, Combatant):
             # The hardcoded values below are meant to be relative to the object being draw.
             vertex_float_array = HEALTH_BAR_COORDINATES.copy()
-            # Increase all x values by objects x
+            # Proportionally scale length of health bar by health
+            vertex_float_array[4] *= polygon.health / polygon.max_health
+            vertex_float_array[6] *= polygon.health / polygon.max_health
+            # Increase all x values by objects x, and also subtract 30, so that the centers match up
             for i in range(0, 8, 2):
-                vertex_float_array[i] += polygon.pos[0]
-            # Same for y values
+                vertex_float_array[i] += polygon.pos[0] - 30
+            # Same for y values, but without the -30
             for i in range(1, 8, 2):
                 vertex_float_array[i] += polygon.pos[1]
             vertex_float_array = np.array(vertex_float_array, dtype=np.float32)
@@ -67,7 +70,9 @@ class Renderer:
             glBufferData(GL_ARRAY_BUFFER, vertex_float_array, GL_DYNAMIC_DRAW)
             glBufferData(GL_ELEMENT_ARRAY_BUFFER, index_array, GL_DYNAMIC_DRAW)
             glBindVertexArray(self.quadVAO)
+
             glDrawElements(GL_LINES, len(index_array), GL_UNSIGNED_INT, None)
+
 
     def init_render_data(self):
         self.quadVAO = glGenVertexArrays(1)

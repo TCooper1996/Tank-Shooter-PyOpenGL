@@ -83,7 +83,7 @@ class Game:
         handle_collisions()
         for entity in Game.game_state["entities"]:
             if entity.active:
-                entity.update(dt)
+                entity.update()
             else:
                 Game.game_state["entities"].remove(entity)
 

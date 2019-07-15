@@ -38,7 +38,7 @@ class Entity(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def update(self, dt):
+    def update(self):
         raise NotImplementedError
 
     def set_color(self, color):
@@ -118,24 +118,25 @@ class Combatant(Entity):
         for bullet in self.bullets:
             bullet.draw(renderer)
 
-    def update(self, dt):
-        self.update_bullets(dt)
+    def update(self):
+        self.update_bullets()
         self.handle_collisions()
         self.check_status()
 
-    def update_bullets(self, dt):
+    def update_bullets(self):
         for bullet in self.bullets:
             if 0 < bullet.pos[0] < GameConstants.SCREEN_WIDTH and 0 < bullet.pos[1] < GameConstants.SCREEN_HEIGHT and bullet.active:
-                bullet.update(dt)
+                bullet.update()
             else:
                 self.bullets.remove(bullet)
                 del bullet
 
     def handle_collisions(self):
         for bullet in self.collisions:
-            self.health -= 10
-            bullet.active = False
-            self.collisions.remove(bullet)
+            if bullet.active:
+                self.health -= 10
+                bullet.active = False
+                self.collisions.remove(bullet)
 
     def check_status(self):
         if self.health <= 0:
@@ -154,8 +155,8 @@ class Tank(Combatant):
     def draw(self, renderer):
         super().draw(renderer)
 
-    def update(self, dt):
-        super().update(dt)
+    def update(self):
+        super().update()
         mouse_x, mouse_y = Entity.game.mouse_position
         x_distance = mouse_x - self.pos[0]
         y_distance = mouse_y - self.pos[1]
@@ -173,26 +174,25 @@ class Turret(Combatant):
         self.max_damage = max_damage
         self.max_velocity = max_velocity
         self.is_friendly = False
-        self.time_since_attack = 0
+        self.ticks_since_attack = 0
 
     def draw(self, renderer):
         super().draw(renderer)
 
-    def update(self, dt):
-        super().update(dt)
-        self.time_since_attack += dt
+    def update(self):
+        super().update()
+        self.ticks_since_attack += 1
         # Set cannon angle
         player_pos = self.game.game_state["player_position"]
         x_distance = player_pos[0] - self.pos[0]
         y_distance = player_pos[1] - self.pos[1]
         self.cannon_angle = np.arctan2(y_distance, x_distance)
         # Attack
-        #TODO: uncomment this
         self.attack()
 
     def attack(self):
-        if self.time_since_attack >= 2.0:
-            self.time_since_attack = 0
+        if self.ticks_since_attack >= 200:
+            self.ticks_since_attack = 0
             for i in range(5):
                 bullet_direction = self.cannon_angle + uniform(-np.pi/8, np.pi/8)
                 self.bullets.append(Bullet(self.pos, bullet_direction, False))
@@ -203,15 +203,15 @@ class Bullet(Entity):
         super().__init__(role=Role.PROJECTILE, sides=8, radius=8, pos=pos)
         self.angle = angle
         self.is_friendly = is_friendly
-        self.velocity = 500
+        self.velocity = 10
 
     def draw(self, renderer):
         renderer.draw_polygon(self)
 
-    def update(self, dt):
+    def update(self):
         # Update movement
-        next_x = np.cos(self.angle) * self.velocity * dt
-        next_y = np.sin(self.angle) * self.velocity * dt
+        next_x = np.cos(self.angle) * self.velocity
+        next_y = np.sin(self.angle) * self.velocity
         new_vertices = self.calc_final_vertices(next_x, next_y)
         self.set_vertices(new_vertices)
         self.add_position(next_x, next_y)
