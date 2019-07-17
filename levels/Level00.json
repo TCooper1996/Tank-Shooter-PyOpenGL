@@ -1,0 +1,14 @@
+{
+  "name": "00",
+  "entities": [
+    ["Turret", 25, [500, 600], 100, 10],
+    ["Barrier", [300, 400], 400, 100]
+    
+  ],
+  "exits": {
+    "up": null,
+    "right": "10",
+    "down": null,
+    "left": null
+  }
+}

@@ -3,12 +3,13 @@ import json
 from cyglfw3 import *
 
 from Entity import *
+from GameConstants import *
 from Renderer import Renderer
 from ResourceManager import *
 
 
 class Game:
-    game_state = {"entities": []}
+    game_state = {"entities": [], "exits": {}}
 
     def __init__(self, width, height):
         self.active = True
@@ -18,12 +19,12 @@ class Game:
         self.Height = height
         # Health bars are not correctly drawn until a bullet is drawn. I have no idea why this is.
         # The bullet created below will be immediately destroyed by the game since it is outside
-        # TODO: find out why rendering a bullet is required for health bars to draw
         # the boundary, but it must still exist for at least one update cycle for the health bars to render.
-        self.load_level(1)
-        b = Bullet([500, 450], 0, False, 10)
+        # TODO: find out why rendering a bullet is required for health bars to draw
+        b = Bullet([-1, -1], 0, False, 10)
         b.velocity = 0
-        self.player = Game.game_state["entities"][0]
+        self.player = Tank([300, 300], 100, 50, 7)
+        Game.game_state["entities"].append(self.player)
         self.player.bullets.append(b)
         self.keyLocked = False
         self.mouse_locked = False
@@ -38,8 +39,25 @@ class Game:
         ResourceManager.get_shader("sprite").use().set_integer("sprite", 0)
         ResourceManager.get_shader("sprite").set_matrix("projection", projection)
         self.renderer = Renderer(ResourceManager.get_shader("sprite"))
+        load_level("00")
 
     def process_input(self, _dt):
+        if self.player.pos[0] > SCREEN_MARGIN_RIGHT and Game.game_state["exits"]["right"]:
+            load_level(Game.game_state["exits"]["right"])
+            # Move player position so it doesn't auto trigger another level load
+            self.player.set_position(x=SCREEN_SPAWN_LEFT)
+        if self.player.pos[1] > SCREEN_MARGIN_UP and Game.game_state["exits"]["up"]:
+            load_level(Game.game_state["exits"]["up"])
+            # Move player position so it doesn't auto trigger another level load
+            self.player.set_position(x=SCREEN_SPAWN_DOWN)
+        if self.player.pos[0] < SCREEN_MARGIN_LEFT and Game.game_state["exits"]["left"]:
+            load_level(Game.game_state["exits"]["left"])
+            # Move player position so it doesn't auto trigger another level load
+            self.player.set_position(x=SCREEN_SPAWN_RIGHT)
+        if self.player.pos[1] < SCREEN_MARGIN_DOWN and Game.game_state["exits"]["down"]:
+            load_level(Game.game_state["exits"]["down"])
+            # Move player position so it doesn't auto trigger another level load
+            self.player.set_position(x=SCREEN_SPAWN_UP)
         velocity = self.player.max_velocity
         next_x, next_y = 0, 0
         walk = self.Keys[KEY_W] != self.Keys[KEY_S]
@@ -51,8 +69,8 @@ class Game:
             if self.Keys[KEY_S]:
                 velocity *= -1
             if walk:
-                next_x = np.cos(self.player.Rotation) * velocity
-                next_y = np.sin(self.player.Rotation) * velocity
+                next_x = np.cos(self.player.rotation) * velocity
+                next_y = np.sin(self.player.rotation) * velocity
 
             new_vertices = self.player.calc_final_vertices(x_offset=next_x, y_offset=next_y, r_offset=turn_angle)
             collisions = [check_overlap(new_vertices, other.get_raw_vertices())
@@ -63,7 +81,6 @@ class Game:
 
         if self.Keys[KEY_SPACE] and not self.keyLocked:
             self.player.set_color("RED")
-            print(self.renderer.mouse_position)
             self.keyLocked = True
         if not self.Keys[KEY_SPACE]:
             self.keyLocked = False
@@ -87,6 +104,7 @@ class Game:
                 entity.update()
             else:
                 Game.game_state["entities"].remove(entity)
+                del entity
 
     def render(self):
         for g in Game.game_state["entities"]:
@@ -95,21 +113,27 @@ class Game:
     def get_mouse(self):
         return self.mouse_position
 
-    def load_level(self, index):
-        # Make sure the player is the first object created
-        with open("levels/Level{0}.json".format(index)) as level:
-            level = json.load(level)
-            entities = level["Entities"]
-            for entity in entities:
-                class_name = entity[0]
-                if class_name == "Tank":
-                    Game.game_state["entities"].append(Tank(*entity[1:]))
-                elif class_name == "Turret":
-                    Game.game_state["entities"].append(Turret(*entity[1:]))
-                elif class_name == "Barrier":
-                    Game.game_state["entities"].append(Barrier(*entity[1:]))
-                else:
-                    raise ValueError("Unknown class: {0}".format(class_name))
+    def get_player(self):
+        return self.player
+
+
+def load_level(index):
+    # Make sure the player is the first object created
+    # Remove all current entities excepted player
+    for entity in Game.game_state["entities"][1:]:
+        entity.active = False
+    with open("levels/Level{0}.json".format(index)) as level:
+        level = json.load(level)
+        Game.game_state["exits"] = level["exits"]
+        entities = level["entities"]
+        for entity in entities:
+            class_name = entity[0]
+            if class_name == "Turret":
+                Game.game_state["entities"].append(Turret(*entity[1:]))
+            elif class_name == "Barrier":
+                Game.game_state["entities"].append(Barrier(*entity[1:]))
+            else:
+                raise ValueError("Unknown class: {0}".format(class_name))
 
 
 # TODO: Optimize handle_collisions; this looks ugly

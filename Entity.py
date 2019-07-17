@@ -15,7 +15,7 @@ class Entity(ABC):
         self.radius = radius
         self.pos = pos
         self.color = GameConstants.COLORS["BLACK"]
-        self.Rotation = 0
+        self.rotation = 0
         self.collision_checked = False
         self.collisions = []
         self.active = True
@@ -66,7 +66,7 @@ class Entity(ABC):
         model_tran = pyrr.matrix44.create_from_translation(np.array([self.pos[0] + x_offset, self.pos[1] + y_offset, 0],
                                                                     dtype=np.float32))
         model_rot = pyrr.matrix44.create_from_axis_rotation(np.array([0, 0, 1], dtype=np.float32),
-                                                            self.Rotation + r_offset)
+                                                            self.rotation + r_offset)
         model_final = pyrr.matrix44.multiply(model_rot, model_tran)
 
         #  Copy basis arrays (which are actually lists) to local var to avoid mutation.
@@ -101,14 +101,21 @@ class Entity(ABC):
 
     def add_position(self, x, y, a=0):
         self.pos = (self.pos[0] + x, self.pos[1] + y)
-        self.Rotation += a
+        self.rotation += a
+
+    def set_position(self, x=None, y=None):
+        if not x:
+            x = self.pos[0]
+        if not y:
+            y = self.pos[1]
+        self.pos = (x, y)
 
 
 class Combatant(Entity):
     def __init__(self, sides, radius, pos, max_damage, max_health):
         super(Combatant, self).__init__(sides, radius, pos)
         self.bullets = []
-        self.cannon_angle = None
+        self.cannon_angle = -1
         self.max_health = max_health
         self.health = self.max_health
         self.max_damage = max_damage
@@ -148,8 +155,8 @@ class Combatant(Entity):
 
 
 class Tank(Combatant):
-    def __init__(self, radius, pos, max_health, max_damage, max_velocity):
-        super().__init__(sides=3, radius=radius, pos=pos, max_health=max_health, max_damage=max_damage)
+    def __init__(self, pos, max_health, max_damage, max_velocity):
+        super().__init__(sides=3, radius=25, pos=pos, max_health=max_health, max_damage=max_damage)
         self.max_health = max_health
         self.health = self.max_health
         self.max_damage = max_damage
@@ -161,8 +168,6 @@ class Tank(Combatant):
         super().draw(renderer)
 
     def update(self):
-        if self.max_damage == None:
-            print("tank")
         super().update()
         mouse_x, mouse_y = Entity.game.mouse_position
         x_distance = mouse_x - self.pos[0]
@@ -189,7 +194,7 @@ class Turret(Combatant):
         super().update()
         self.ticks_since_attack += 1
         # Set cannon angle
-        player_pos = self.game.game_state["player_position"]
+        player_pos = self.game.get_player().pos
         x_distance = player_pos[0] - self.pos[0]
         y_distance = player_pos[1] - self.pos[1]
         self.cannon_angle = np.arctan2(y_distance, x_distance)
@@ -213,8 +218,6 @@ class Bullet(Entity):
         self.damage = damage
 
     def draw(self, renderer):
-        if self.damage == None:
-            print("asd")
         renderer.draw_polygon(self)
 
     def update(self):
@@ -231,7 +234,7 @@ class Barrier(Entity):
         self.width = width
         self.height = height
         super().__init__(4, None, pos)
-        self.rotation = rotation
+        self.rotation = np.deg2rad(rotation)
         self.init_buffer_data()
         self.__vertex_value_array = self.calc_final_vertices()
 
@@ -241,7 +244,6 @@ class Barrier(Entity):
     def update(self):
         for entity in self.collisions:
             if isinstance(entity, Bullet):
-                print(entity.pos)
                 entity.active = False
                 self.collisions.remove(entity)
 
@@ -261,3 +263,6 @@ class Barrier(Entity):
 
     def get_raw_vertices(self):
         return np.copy(self.__vertex_value_array)
+
+    def get_render_vertices(self):
+        return self.get_raw_vertices()
