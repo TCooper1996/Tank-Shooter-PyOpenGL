@@ -7,14 +7,13 @@ from GameConstants import *
 
 class Renderer:
     def __init__(self, shader):
-        self.shapeBuffers = []
         self.shader = shader
         self.quadVAO = -1
         self.VBO = -1
         self.IBO = -1
         self.cannonIBO = -1
         self.init_render_data()
-        self.mouse_position = (-1, -1)
+        self.mouse_position = (None, None)
 
     def draw_cannon(self, pos, cannon_angle):
         cannon_float_array = np.array([
@@ -81,7 +80,7 @@ class Renderer:
 
         glBindBuffer(GL_ARRAY_BUFFER, self.VBO)
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, self.cannonIBO)
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER, np.array([0, 1]), GL_STATIC_DRAW)
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, np.array([0, 1], dtype=np.uint32), GL_STATIC_DRAW)
 
         glBindVertexArray(self.quadVAO)
         glEnableVertexAttribArray(0)

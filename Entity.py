@@ -118,7 +118,7 @@ class Combatant(Entity):
     def __init__(self, sides, radius, pos, max_damage, max_health):
         super(Combatant, self).__init__(sides, radius, pos)
         self.bullets = []
-        self.cannon_angle = -1
+        self.cannon_angle = None
         self.max_health = max_health
         self.health = self.max_health
         self.max_damage = max_damage
@@ -131,6 +131,9 @@ class Combatant(Entity):
             bullet.draw(renderer)
         if self.health > 0:
             renderer.draw_polygon(self)
+        if self.cannon_angle is None:
+            raise ValueError("Cannon angle has no been set.")
+        else:
             renderer.draw_cannon(self.pos, self.cannon_angle)
 
     def update(self):
@@ -140,7 +143,7 @@ class Combatant(Entity):
 
     def update_bullets(self):
         for bullet in self.bullets:
-            if 0 < bullet.pos[0] < GameConstants.SCREEN_WIDTH and 0 < bullet.pos[1] < GameConstants.SCREEN_HEIGHT and bullet.active:
+            if bullet.active:
                 bullet.update()
             else:
                 self.bullets.remove(bullet)
@@ -237,6 +240,7 @@ class Bullet(Entity):
         new_vertices = self.calc_final_vertices(next_x, next_y)
         self.set_vertices(new_vertices)
         self.add_position(next_x, next_y)
+        self.active = 0 < self.pos[0] < GameConstants.SCREEN_WIDTH and 0 < self.pos[1] < GameConstants.SCREEN_HEIGHT
 
 
 class Barrier(Entity):
@@ -273,4 +277,3 @@ class Barrier(Entity):
 
     def get_collision_vertices(self):
         return np.copy(self._vertex_value_array)
-

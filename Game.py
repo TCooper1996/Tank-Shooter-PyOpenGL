@@ -17,15 +17,8 @@ class Game:
         self.mouse_buttons = [False] * 3
         self.Width = width
         self.Height = height
-        # Health bars are not correctly drawn until a bullet is drawn. I have no idea why this is.
-        # The bullet created below will be immediately destroyed by the game since it is outside
-        # the boundary, but it must still exist for at least one update cycle for the health bars to render.
-        # TODO: find out why rendering a bullet is required for health bars to draw
-        b = Bullet([-1, -1], 0, False, 10)
-        b.velocity = 0
         self.player = Tank([300, 300], 100, 50, 7)
         Game.game_state["entities"].append(self.player)
-        self.player.bullets.append(b)
         self.keyLocked = False
         self.mouse_locked = False
         self.renderer = None
@@ -133,10 +126,10 @@ def handle_collisions():
             all_bullets = [entity.bullets for entity in Game.game_state["entities"] if isinstance(entity, Combatant)]
             # Filter out all bullets friendly to the current actor and flatten list.
             if isinstance(actor, Combatant):
-                hostile_bullets = [bullet for bullets in all_bullets for bullet in bullets if bullet.is_friendly != actor.is_friendly]
+                hostile_bullets = [b for bs in all_bullets for b in bs if b.is_friendly != actor.is_friendly]
             # If the object is not a combatant, then all bullets will be tested against it.
             else:
-                hostile_bullets = [bullet for bullets in all_bullets for bullet in bullets]
+                hostile_bullets = [b for bs in all_bullets for b in bs]
             for projectile in hostile_bullets:
                 if check_overlap(actor.get_collision_vertices(), projectile.get_collision_vertices()):
                     actor.collisions.append(projectile)
@@ -149,11 +142,11 @@ def check_overlap(vertices1, vertices2):
         vert_size = len(vertices)
         axes = []
         #  Compare every pair of vertices
-        for i in range(0, vert_size, 2):
+        for k in range(0, vert_size, 2):
             # Get first vector using slice, + 2 due to exclusive upper bound
-            vec1 = np.array(vertices[i:i + 2])
+            vec1 = np.array(vertices[k:k + 2])
             # Slicing is avoided here due to cases like vertices[6:0]
-            vec2 = np.array([vertices[(i + 2) % vert_size], vertices[(i + 3) % vert_size]])
+            vec2 = np.array([vertices[(k + 2) % vert_size], vertices[(k + 3) % vert_size]])
             # Subtract vectors to get their edge
             edge = vec1 - vec2
             # Get orthogonal vector
@@ -167,8 +160,8 @@ def check_overlap(vertices1, vertices2):
     def project_vertices(axis_, vertices):
         min_ = np.dot(axis_, vertices[:2])
         max_ = min_
-        for i in range(0, len(vertices), 2):
-            product = np.dot(axis_, vertices[i:i + 2])
+        for j in range(0, len(vertices), 2):
+            product = np.dot(axis_, vertices[j:j + 2])
             if product < min_:
                 min_ = product
             elif product > max_:
