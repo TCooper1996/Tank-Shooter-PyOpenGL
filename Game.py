@@ -1,5 +1,7 @@
 import json
+from random import random
 
+import math
 from cyglfw3 import *
 
 from Entity import *
@@ -9,7 +11,7 @@ from ResourceManager import *
 
 
 class Game:
-    game_state = {"entities": [], "exits": {}}
+    game_state = {"entities": [], "exits": {}, "paused": False, "level": (0, 0)}
 
     def __init__(self, width, height):
         self.active = True
@@ -17,7 +19,7 @@ class Game:
         self.mouse_buttons = [False] * 3
         self.Width = width
         self.Height = height
-        self.player = Tank([300, 300], 100, 50, 7)
+        self.player = Tank([300, 300], 100, 50, 15)
         Game.game_state["entities"].append(self.player)
         self.keyLocked = False
         self.mouse_locked = False
@@ -32,15 +34,27 @@ class Game:
         ResourceManager.get_shader("sprite").use().set_integer("sprite", 0)
         ResourceManager.get_shader("sprite").set_matrix("projection", projection)
         self.renderer = Renderer(ResourceManager.get_shader("sprite"))
-        load_level("00")
+        Game.game_state["world"] = generate_world(10)
+        load_level(-1)
 
     def process_input(self, _dt):
-        for i in range(4):
-            axis = i % 2
-            distance = self.player.get_position() - np.array([SCREEN_WIDTH/2, SCREEN_HEIGHT/2])
-            if abs(distance[axis]) > DIST_LIST[axis] and Game.game_state["exits"][i]:
-                load_level(Game.game_state["exits"][i])
-                self.player.set_position(axis, SPAWN_LIST[i])
+
+        if self.player.get_position()[0] > MAX_X and Game.game_state["exits"][0]:
+            load_level(0)
+            self.player.set_position(0, SPAWN_LIST[0])
+
+        elif self.player.get_position()[1] > MAX_Y and Game.game_state["exits"][1]:
+            load_level(1)
+            self.player.set_position(1, SPAWN_LIST[1])
+
+        elif self.player.get_position()[0] < MIN_X and Game.game_state["exits"][2]:
+            load_level(2)
+            self.player.set_position(0, SPAWN_LIST[2])
+
+        elif self.player.get_position()[1] < MIN_Y and Game.game_state["exits"][3]:
+            load_level(3)
+            self.player.set_position(1, SPAWN_LIST[3])
+
         velocity = self.player.max_velocity
         next_x, next_y = 0, 0
         walk = self.Keys[KEY_W] != self.Keys[KEY_S]
@@ -63,6 +77,7 @@ class Game:
                 self.player.add_position(next_x, next_y, turn_angle)
 
         if self.Keys[KEY_SPACE] and not self.keyLocked:
+            self.game_state["paused"] = not self.game_state["paused"]
             self.keyLocked = True
         if not self.Keys[KEY_SPACE]:
             self.keyLocked = False
@@ -74,23 +89,28 @@ class Game:
             self.mouse_locked = False
 
     def update(self, _dt, mouse_position):
-        # Check player status
-        if not self.player.active:
-            self.active = False
-        # Get correct mouse position
-        self.mouse_position = (mouse_position[0], self.Height - mouse_position[1])
-        Game.game_state["player_position"] = self.player.pos
-        handle_collisions()
-        for entity in Game.game_state["entities"]:
-            if entity.active:
-                entity.update()
-            else:
-                Game.game_state["entities"].remove(entity)
-                del entity
+        # Only update if game is not paused
+        if not Game.game_state["paused"]:
+            # Check player status
+            if not self.player.active:
+                self.active = False
+            # Get correct mouse position
+            self.mouse_position = (mouse_position[0], self.Height - mouse_position[1])
+            Game.game_state["player_position"] = self.player.pos
+            handle_collisions()
+            for entity in Game.game_state["entities"]:
+                if entity.active:
+                    entity.update()
+                else:
+                    Game.game_state["entities"].remove(entity)
+                    del entity
 
     def render(self):
-        for g in Game.game_state["entities"]:
-            g.draw(self.renderer)
+        if Game.game_state["paused"]:
+            self.renderer.draw_map(Game.game_state["world"], Game.game_state["level"])
+        else:
+            for g in Game.game_state["entities"]:
+                g.draw(self.renderer)
 
     def get_mouse(self):
         return self.mouse_position
@@ -99,14 +119,61 @@ class Game:
         return self.player
 
 
-def load_level(index):
+def generate_world(max_rooms):
+    world_dict = {}
+
+    def generate_level(root, rooms, depth):
+        nonlocal max_rooms
+        if max_rooms > 0:
+            directions = [random() < 0.7 - math.log(depth) / 2 for _ in range(4)]
+            rooms[root] = directions
+            if directions[0] and not (root[0] + 1, root[1]) in rooms and max_rooms > 0:
+                max_rooms -= 1
+                next_room = (root[0] + 1, root[1])
+                rooms[next_room] = generate_level(next_room, rooms, depth + 1)
+                rooms[next_room][2] = True
+            if directions[1] and not (root[0], root[1] + 1) in rooms and max_rooms > 0:
+                max_rooms -= 1
+                next_room = (root[0], root[1] + 1)
+                rooms[next_room] = generate_level(next_room, rooms, depth + 1)
+                rooms[next_room][3] = True
+            if directions[2] and not (root[0] - 1, root[1]) in rooms and max_rooms > 0:
+                max_rooms -= 1
+                next_room = (root[0] - 1, root[1])
+                rooms[next_room] = generate_level(next_room, rooms, depth + 1)
+                rooms[next_room][0] = True
+            if directions[3] and not (root[0], root[1] - 1) in rooms and max_rooms > 0:
+                max_rooms -= 1
+                next_room = (root[0], root[1] - 1)
+                rooms[next_room] = generate_level(next_room, rooms, depth + 1)
+                rooms[next_room][1] = True
+            return rooms[root]
+        else:
+            return [False] * 4
+    room_origin = (0, 0)
+    generate_level(room_origin, world_dict, 1)
+    return world_dict
+
+
+def load_level(direction):
     # Make sure the player is the first object created
     # Remove all current entities excepted player
     for entity in Game.game_state["entities"][1:]:
         entity.active = False
-    with open("levels/Level{0}.json".format(index)) as level:
+    level_list = list(Game.game_state["level"])
+    if direction == 0:
+        level_list[0] += 1
+    elif direction == 1:
+        level_list[1] += 1
+    elif direction == 2:
+        level_list[0] -= 1
+    elif direction == 3:
+        level_list[1] -= 1
+    Game.game_state["level"] = tuple(level_list)
+
+    with open("levels/Level00.json") as level:
         level = json.load(level)
-        Game.game_state["exits"] = level["exits"]
+        Game.game_state["exits"] = Game.game_state["world"][Game.game_state["level"]]
         entities = level["entities"]
         for entity in entities:
             class_name = entity[0]

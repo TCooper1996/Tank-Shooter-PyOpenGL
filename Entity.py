@@ -108,9 +108,7 @@ class Entity:
             x = val
         self.pos = (x, y)
 
-    def get_position(self, index=None):
-        if index:
-            return np.array(self.pos[index])
+    def get_position(self):
         return np.array(self.pos)
 
 
@@ -132,7 +130,7 @@ class Combatant(Entity):
         if self.health > 0:
             renderer.draw_polygon(self)
         if self.cannon_angle is None:
-            raise ValueError("Cannon angle has no been set.")
+            pass  # raise ValueError("Cannon angle has no been set.")
         else:
             renderer.draw_cannon(self.pos, self.cannon_angle)
 
@@ -158,10 +156,13 @@ class Combatant(Entity):
 
     def check_status(self):
         if self.health <= 0:
+            self.active = False
+            """
             if not isinstance(self, Tank) and len(self.bullets) == 0:
                 self.active = False
             elif isinstance(self, Tank):
                 self.active = False
+                """
 
 
 class Tank(Combatant):

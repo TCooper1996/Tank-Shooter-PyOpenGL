@@ -15,6 +15,25 @@ class Renderer:
         self.init_render_data()
         self.mouse_position = (None, None)
 
+    def draw_map(self, map_dict, current_level):
+        levels = list(map_dict.keys())
+        map_float_array = []
+        for level in levels:
+            x = level[0] * TILE_WIDTH + SCREEN_WIDTH / 2
+            y = level[1] * TILE_HEIGHT + SCREEN_HEIGHT / 2
+            w = TILE_WIDTH
+            h = TILE_HEIGHT
+            # Some vertices are doubled because we're not using an index buffer here.
+            map_float_array += [x, y] + [x, y + h] * 2 + [x + w, y + h] * 2 + [x + w, y] * 2 + [x, y]
+            if level == current_level:
+                map_float_array += [x, y, x + w, y + h, x, y + h, x + w, y]
+        glBindBuffer(GL_ARRAY_BUFFER, self.VBO)
+        glBufferData(GL_ARRAY_BUFFER, np.array(map_float_array, dtype=np.float32), GL_DYNAMIC_DRAW)
+
+        glBindVertexArray(self.quadVAO)
+
+        glDrawArrays(GL_LINES, 0, len(map_float_array))
+
     def draw_cannon(self, pos, cannon_angle):
         cannon_float_array = np.array([
             pos[0], pos[1],  # Center
@@ -81,6 +100,7 @@ class Renderer:
         glBindBuffer(GL_ARRAY_BUFFER, self.VBO)
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, self.cannonIBO)
         glBufferData(GL_ELEMENT_ARRAY_BUFFER, np.array([0, 1], dtype=np.uint32), GL_STATIC_DRAW)
+
 
         glBindVertexArray(self.quadVAO)
         glEnableVertexAttribArray(0)

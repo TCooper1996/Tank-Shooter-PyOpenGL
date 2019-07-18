@@ -6,5 +6,4 @@
     ["Barrier", [400, 300], 400, 100, 90]
 
   ],
-  "exits": [null, null, "00", null]
 }
