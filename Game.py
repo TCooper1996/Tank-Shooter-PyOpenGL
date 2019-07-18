@@ -42,22 +42,12 @@ class Game:
         load_level("00")
 
     def process_input(self, _dt):
-        if self.player.pos[0] > SCREEN_MARGIN_RIGHT and Game.game_state["exits"]["right"]:
-            load_level(Game.game_state["exits"]["right"])
-            # Move player position so it doesn't auto trigger another level load
-            self.player.set_position(x=SCREEN_SPAWN_LEFT)
-        if self.player.pos[1] > SCREEN_MARGIN_UP and Game.game_state["exits"]["up"]:
-            load_level(Game.game_state["exits"]["up"])
-            # Move player position so it doesn't auto trigger another level load
-            self.player.set_position(x=SCREEN_SPAWN_DOWN)
-        if self.player.pos[0] < SCREEN_MARGIN_LEFT and Game.game_state["exits"]["left"]:
-            load_level(Game.game_state["exits"]["left"])
-            # Move player position so it doesn't auto trigger another level load
-            self.player.set_position(x=SCREEN_SPAWN_RIGHT)
-        if self.player.pos[1] < SCREEN_MARGIN_DOWN and Game.game_state["exits"]["down"]:
-            load_level(Game.game_state["exits"]["down"])
-            # Move player position so it doesn't auto trigger another level load
-            self.player.set_position(x=SCREEN_SPAWN_UP)
+        for i in range(4):
+            axis = i % 2
+            distance = self.player.get_position() - np.array([SCREEN_WIDTH/2, SCREEN_HEIGHT/2])
+            if abs(distance[axis]) > DIST_LIST[axis] and Game.game_state["exits"][i]:
+                load_level(Game.game_state["exits"][i])
+                self.player.set_position(axis, SPAWN_LIST[i])
         velocity = self.player.max_velocity
         next_x, next_y = 0, 0
         walk = self.Keys[KEY_W] != self.Keys[KEY_S]
@@ -73,14 +63,13 @@ class Game:
                 next_y = np.sin(self.player.rotation) * velocity
 
             new_vertices = self.player.calc_final_vertices(x_offset=next_x, y_offset=next_y, r_offset=turn_angle)
-            collisions = [check_overlap(new_vertices, other.get_raw_vertices())
+            collisions = [check_overlap(new_vertices, other.get_collision_vertices())
                           for other in Game.game_state["entities"] if self.player != other]
             if not any(collisions):
                 self.player.set_vertices(new_vertices)
                 self.player.add_position(next_x, next_y, turn_angle)
 
         if self.Keys[KEY_SPACE] and not self.keyLocked:
-            self.player.set_color("RED")
             self.keyLocked = True
         if not self.Keys[KEY_SPACE]:
             self.keyLocked = False
@@ -149,7 +138,7 @@ def handle_collisions():
             else:
                 hostile_bullets = [bullet for bullets in all_bullets for bullet in bullets]
             for projectile in hostile_bullets:
-                if check_overlap(actor.get_raw_vertices(), projectile.get_raw_vertices()):
+                if check_overlap(actor.get_collision_vertices(), projectile.get_collision_vertices()):
                     actor.collisions.append(projectile)
 
 

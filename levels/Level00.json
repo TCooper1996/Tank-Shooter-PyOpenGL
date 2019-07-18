@@ -5,10 +5,6 @@
     ["Barrier", [300, 400], 400, 100]
     
   ],
-  "exits": {
-    "up": null,
-    "right": "10",
-    "down": null,
-    "left": null
-  }
+  "exits": ["10", null, null, null]
+
 }

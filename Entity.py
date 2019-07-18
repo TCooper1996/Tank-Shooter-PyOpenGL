@@ -1,4 +1,3 @@
-from abc import ABC, abstractmethod
 from random import uniform
 
 import numpy as np
@@ -7,7 +6,7 @@ import pyrr
 import GameConstants
 
 
-class Entity(ABC):
+class Entity:
     game = None
 
     def __init__(self, sides, radius, pos):
@@ -20,16 +19,14 @@ class Entity(ABC):
         self.collisions = []
         self.active = True
         self.basis_array = []
-        self.__index_array = []
+        self._index_array = []
         self.init_buffer_data()
-        self.__vertex_value_array = self.calc_final_vertices()
+        self._vertex_value_array = self.calc_final_vertices()
         super().__init__()
 
-    @abstractmethod
     def draw(self, renderer):
         raise NotImplementedError
 
-    @abstractmethod
     def update(self):
         raise NotImplementedError
 
@@ -52,7 +49,7 @@ class Entity(ABC):
         # Connect last vertex to origin, then connect last vertex to first real vertex
         indices[-4], indices[-3], indices[-2], indices[-1] = (num_of_indices // 2 - 2), 0, 0, (num_of_indices // 2) - 1
         self.basis_array = vertices
-        self.__index_array = indices
+        self._index_array = indices
 
     # This method takes the basis vertices, adds the z dimension (necessary for transformation math), performs the trans
     # /formation, and then removes the z dimension.
@@ -87,28 +84,34 @@ class Entity(ABC):
 
     # Include center vertex
     def get_render_vertices(self):
-        return np.copy(self.__vertex_value_array)
+        return np.copy(self._vertex_value_array)
 
     # Exclude center vertex. Use this when checking for collisions
-    def get_raw_vertices(self):
-        return np.copy(self.__vertex_value_array[:-2])
+    def get_collision_vertices(self):
+        return np.copy(self._vertex_value_array[:-2])
 
     def set_vertices(self, vertices):
-        self.__vertex_value_array = np.copy(vertices)
+        self._vertex_value_array = np.copy(vertices)
 
     def get_indices(self):
-        return np.copy(self.__index_array)
+        return np.copy(self._index_array)
 
     def add_position(self, x, y, a=0):
         self.pos = (self.pos[0] + x, self.pos[1] + y)
         self.rotation += a
 
-    def set_position(self, x=None, y=None):
-        if not x:
-            x = self.pos[0]
-        if not y:
-            y = self.pos[1]
+    def set_position(self, axis, val):
+        x, y = self.pos
+        if axis == 1:
+            y = val
+        elif axis == 0:
+            x = val
         self.pos = (x, y)
+
+    def get_position(self, index=None):
+        if index:
+            return np.array(self.pos[index])
+        return np.array(self.pos)
 
 
 class Combatant(Entity):
@@ -124,10 +127,11 @@ class Combatant(Entity):
         self.is_friendly = None
 
     def draw(self, renderer):
-        renderer.draw_polygon(self)
-        renderer.draw_cannon(self.pos, self.cannon_angle)
         for bullet in self.bullets:
             bullet.draw(renderer)
+        if self.health > 0:
+            renderer.draw_polygon(self)
+            renderer.draw_cannon(self.pos, self.cannon_angle)
 
     def update(self):
         self.update_bullets()
@@ -151,7 +155,10 @@ class Combatant(Entity):
 
     def check_status(self):
         if self.health <= 0:
-            self.active = False
+            if not isinstance(self, Tank) and len(self.bullets) == 0:
+                self.active = False
+            elif isinstance(self, Tank):
+                self.active = False
 
 
 class Tank(Combatant):
@@ -188,18 +195,21 @@ class Turret(Combatant):
         self.ticks_since_attack = 0
 
     def draw(self, renderer):
-        super().draw(renderer)
+        if self.health > 0:
+            super().draw(renderer)
 
     def update(self):
+        # Super().update() regardless of health to allow bullets to finish life cycle before destroying turret
         super().update()
-        self.ticks_since_attack += 1
-        # Set cannon angle
-        player_pos = self.game.get_player().pos
-        x_distance = player_pos[0] - self.pos[0]
-        y_distance = player_pos[1] - self.pos[1]
-        self.cannon_angle = np.arctan2(y_distance, x_distance)
-        # Attack
-        self.attack()
+        if self.health > 0:
+            self.ticks_since_attack += 1
+            # Set cannon angle
+            player_pos = self.game.get_player().pos
+            x_distance = player_pos[0] - self.pos[0]
+            y_distance = player_pos[1] - self.pos[1]
+            self.cannon_angle = np.arctan2(y_distance, x_distance)
+            # Attack
+            self.attack()
 
     def attack(self):
         if self.ticks_since_attack >= 200:
@@ -236,7 +246,7 @@ class Barrier(Entity):
         super().__init__(4, None, pos)
         self.rotation = np.deg2rad(rotation)
         self.init_buffer_data()
-        self.__vertex_value_array = self.calc_final_vertices()
+        self._vertex_value_array = self.calc_final_vertices()
 
     def draw(self, renderer):
         renderer.draw_polygon(self)
@@ -256,13 +266,11 @@ class Barrier(Entity):
         indices = [0, 1, 1, 2, 2, 3, 3, 0]
 
         self.basis_array = vertices
-        self.__index_array = indices
+        self._index_array = indices
 
     def get_indices(self):
         return np.array([0, 1, 1, 2, 2, 3, 3, 0], dtype=np.uint32)
 
-    def get_raw_vertices(self):
-        return np.copy(self.__vertex_value_array)
+    def get_collision_vertices(self):
+        return np.copy(self._vertex_value_array)
 
-    def get_render_vertices(self):
-        return self.get_raw_vertices()

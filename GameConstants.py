@@ -3,15 +3,19 @@ import numpy as np
 SCREEN_WIDTH = 1600
 SCREEN_HEIGHT = 1000
 
-SCREEN_MARGIN_UP = 950
-SCREEN_MARGIN_RIGHT = 1550
-SCREEN_MARGIN_DOWN = 50
-SCREEN_MARGIN_LEFT = 50
+# Below are the maximum x and y distances from the center of the screen in which a level transition will not trigger
+DIST_LIST = [
+    SCREEN_WIDTH / 2 - 50,
+    SCREEN_HEIGHT / 2 - 50
+    ]
 
-SCREEN_SPAWN_UP = 850
-SCREEN_SPAWN_RIGHT = 1450
-SCREEN_SPAWN_DOWN = 150
-SCREEN_SPAWN_LEFT = 150
+# X or Y Distance from the origin that the player will be spawned in order of LEFT, DOWN, RIGHT, UP
+SPAWN_LIST = [
+    150,
+    150,
+    1450,
+    850,
+    ]
 
 COLORS = {"RED": np.array([1, 0, 0], dtype=np.float32),
           "BLACK": np.array([0, 0, 0], dtype=np.float32),

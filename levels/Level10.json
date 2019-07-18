@@ -1,15 +1,10 @@
 {
-  "name": "00",
+  "name": "10",
   "entities": [
     ["Turret", 25, [900, 700], 100, 10],
     ["Turret", 25, [900, 400], 100, 10],
     ["Barrier", [400, 300], 400, 100, 90]
 
   ],
-  "exits": {
-    "up": null,
-    "right": null,
-    "down": null,
-    "left": "00"
-  }
+  "exits": [null, null, "00", null]
 }
