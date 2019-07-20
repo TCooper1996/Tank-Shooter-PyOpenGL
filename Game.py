@@ -1,9 +1,8 @@
 import json
-from random import random
 
-import math
 from cyglfw3 import *
 
+import WorldMap
 from Entity import *
 from GameConstants import *
 from Renderer import Renderer
@@ -120,39 +119,8 @@ class Game:
 
 
 def generate_world(max_rooms):
-    world_dict = {}
-
-    def generate_level(root, rooms, depth):
-        nonlocal max_rooms
-        if max_rooms > 0:
-            directions = [random() < 0.7 - math.log(depth) / 2 for _ in range(4)]
-            rooms[root] = directions
-            if directions[0] and not (root[0] + 1, root[1]) in rooms and max_rooms > 0:
-                max_rooms -= 1
-                next_room = (root[0] + 1, root[1])
-                rooms[next_room] = generate_level(next_room, rooms, depth + 1)
-                rooms[next_room][2] = True
-            if directions[1] and not (root[0], root[1] + 1) in rooms and max_rooms > 0:
-                max_rooms -= 1
-                next_room = (root[0], root[1] + 1)
-                rooms[next_room] = generate_level(next_room, rooms, depth + 1)
-                rooms[next_room][3] = True
-            if directions[2] and not (root[0] - 1, root[1]) in rooms and max_rooms > 0:
-                max_rooms -= 1
-                next_room = (root[0] - 1, root[1])
-                rooms[next_room] = generate_level(next_room, rooms, depth + 1)
-                rooms[next_room][0] = True
-            if directions[3] and not (root[0], root[1] - 1) in rooms and max_rooms > 0:
-                max_rooms -= 1
-                next_room = (root[0], root[1] - 1)
-                rooms[next_room] = generate_level(next_room, rooms, depth + 1)
-                rooms[next_room][1] = True
-            return rooms[root]
-        else:
-            return [False] * 4
-    room_origin = (0, 0)
-    generate_level(room_origin, world_dict, 1)
-    return world_dict
+    world = WorldMap.World(max_rooms, "levels")
+    return world
 
 
 def load_level(direction):
@@ -170,10 +138,10 @@ def load_level(direction):
     elif direction == 3:
         level_list[1] -= 1
     Game.game_state["level"] = tuple(level_list)
-
-    with open("levels/Level00.json") as level:
+    room = Game.game_state["world"][tuple(level_list)]
+    with open("levels/" + room.get_design()) as level:
         level = json.load(level)
-        Game.game_state["exits"] = Game.game_state["world"][Game.game_state["level"]]
+        Game.game_state["exits"] = room.get_exits()
         entities = level["entities"]
         for entity in entities:
             class_name = entity[0]
