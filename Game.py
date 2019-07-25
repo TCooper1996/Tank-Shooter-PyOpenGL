@@ -2,55 +2,43 @@ import json
 
 from cyglfw3 import *
 
+import Interface
 import WorldMap
 from Entity import *
 from GameConstants import *
-from Renderer import Renderer
-from ResourceManager import *
 
 
-class Game:
-    game_state = {"entities": [], "exits": {}, "paused": False, "level": (0, 0)}
+class Game(Interface.Interface):
+    game_state = {"entities": [], "exits": {}, "paused": False, "level": (0, 0), "world": WorldMap.World}
 
     def __init__(self, width, height):
-        self.active = True
-        self.Keys = [False] * 1024
-        self.mouse_buttons = [False] * 3
-        self.Width = width
-        self.Height = height
-        self.player = Tank([300, 300], 100, 50, 15)
+        super().__init__(width, height)
+        self.player = Tank(pos=[300, 300], max_health=100, max_damage=50, max_velocity=5)
         Game.game_state["entities"].append(self.player)
-        self.keyLocked = False
-        self.mouse_locked = False
-        self.renderer = None
-        self.mouse_position = (None, None)
         Entity.game = self
 
     def load_resources(self):
-        ResourceManager.load_shader("vertex.glsl", "fragment.glsl", "sprite")
-        projection = pyrr.matrix44.create_orthogonal_projection(float(0), float(self.Width), float(0),
-                                                                float(self.Height), float(-1), float(1))
-        ResourceManager.get_shader("sprite").use().set_integer("sprite", 0)
-        ResourceManager.get_shader("sprite").set_matrix("projection", projection)
-        self.renderer = Renderer(ResourceManager.get_shader("sprite"))
+        super().load_resources()
         Game.game_state["world"] = generate_world(10)
         load_level(-1)
 
-    def process_input(self, _dt):
+    def process_input(self):
+        world = Game.game_state["world"]
+        level = Game.game_state["level"]
 
-        if self.player.get_position()[0] > MAX_X and Game.game_state["exits"][0]:
+        if self.player.get_position()[0] > MAX_X and world.room_right(level):
             load_level(0)
             self.player.set_position(0, SPAWN_LIST[0])
 
-        elif self.player.get_position()[1] > MAX_Y and Game.game_state["exits"][1]:
+        elif self.player.get_position()[1] > MAX_Y and world.room_up(level):
             load_level(1)
             self.player.set_position(1, SPAWN_LIST[1])
 
-        elif self.player.get_position()[0] < MIN_X and Game.game_state["exits"][2]:
+        elif self.player.get_position()[0] < MIN_X and world.room_left(level):
             load_level(2)
             self.player.set_position(0, SPAWN_LIST[2])
 
-        elif self.player.get_position()[1] < MIN_Y and Game.game_state["exits"][3]:
+        elif self.player.get_position()[1] < MIN_Y and world.room_down(level):
             load_level(3)
             self.player.set_position(1, SPAWN_LIST[3])
 
@@ -69,17 +57,17 @@ class Game:
                 next_y = np.sin(self.player.rotation) * velocity
 
             new_vertices = self.player.calc_final_vertices(x_offset=next_x, y_offset=next_y, r_offset=turn_angle)
-            collisions = [check_overlap(new_vertices, other.get_collision_vertices())
+            collisions = [Interface.check_overlap(new_vertices, other.get_collision_vertices())
                           for other in Game.game_state["entities"] if self.player != other]
             if not any(collisions):
                 self.player.set_vertices(new_vertices)
                 self.player.add_position(next_x, next_y, turn_angle)
 
-        if self.Keys[KEY_SPACE] and not self.keyLocked:
+        if self.Keys[KEY_SPACE] and not self.key_locked:
             self.game_state["paused"] = not self.game_state["paused"]
-            self.keyLocked = True
+            self.key_locked = True
         if not self.Keys[KEY_SPACE]:
-            self.keyLocked = False
+            self.key_locked = False
 
         if self.mouse_buttons[MOUSE_BUTTON_LEFT] and not self.mouse_locked:
             self.mouse_locked = True
@@ -87,14 +75,14 @@ class Game:
         if not self.mouse_buttons[MOUSE_BUTTON_LEFT]:
             self.mouse_locked = False
 
-    def update(self, _dt, mouse_position):
+    def update(self, mouse_position):
         # Only update if game is not paused
         if not Game.game_state["paused"]:
             # Check player status
             if not self.player.active:
                 self.active = False
             # Get correct mouse position
-            self.mouse_position = (mouse_position[0], self.Height - mouse_position[1])
+            self.mouse_position = (mouse_position[0], self.height - mouse_position[1])
             Game.game_state["player_position"] = self.player.pos
             handle_collisions()
             for entity in Game.game_state["entities"]:
@@ -111,9 +99,6 @@ class Game:
             for g in Game.game_state["entities"]:
                 g.draw(self.renderer)
 
-    def get_mouse(self):
-        return self.mouse_position
-
     def get_player(self):
         return self.player
 
@@ -128,6 +113,12 @@ def load_level(direction):
     # Remove all current entities excepted player
     for entity in Game.game_state["entities"][1:]:
         entity.active = False
+
+    # Clear player bullets as well
+    for bullet in Game.game_state["entities"][0].bullets:
+        bullet.active = False
+        del bullet
+
     level_list = list(Game.game_state["level"])
     if direction == 0:
         level_list[0] += 1
@@ -166,58 +157,5 @@ def handle_collisions():
             else:
                 hostile_bullets = [b for bs in all_bullets for b in bs]
             for projectile in hostile_bullets:
-                if check_overlap(actor.get_collision_vertices(), projectile.get_collision_vertices()):
+                if Interface.check_overlap(actor.get_collision_vertices(), projectile.get_collision_vertices()):
                     actor.collisions.append(projectile)
-
-
-# Returns bool defined by collision
-def check_overlap(vertices1, vertices2):
-    # Closure returns list of normalized np vectors
-    def obtain_axes(vertices):
-        vert_size = len(vertices)
-        axes = []
-        #  Compare every pair of vertices
-        for k in range(0, vert_size, 2):
-            # Get first vector using slice, + 2 due to exclusive upper bound
-            vec1 = np.array(vertices[k:k + 2])
-            # Slicing is avoided here due to cases like vertices[6:0]
-            vec2 = np.array([vertices[(k + 2) % vert_size], vertices[(k + 3) % vert_size]])
-            # Subtract vectors to get their edge
-            edge = vec1 - vec2
-            # Get orthogonal vector
-            edge = [edge[1], -edge[0]]
-            # Normalize
-            edge = edge / np.linalg.norm(edge)
-            axes.append(edge)
-        return axes
-
-    # Closure returns a tuple of the min and max values projected on the axis
-    def project_vertices(axis_, vertices):
-        min_ = np.dot(axis_, vertices[:2])
-        max_ = min_
-        for j in range(0, len(vertices), 2):
-            product = np.dot(axis_, vertices[j:j + 2])
-            if product < min_:
-                min_ = product
-            elif product > max_:
-                max_ = product
-        return min_, max_
-
-    # This is the main code for checkOverlap
-    # First check if collision with wall
-    for i in range(0, len(vertices1), 2):
-        if not 0 <= vertices1[i] <= GameConstants.SCREEN_WIDTH:
-            return True
-        if not 0 <= vertices1[i + 1] <= GameConstants.SCREEN_HEIGHT:
-            return True
-
-    axes1 = obtain_axes(vertices1)
-    axes2 = obtain_axes(vertices2)
-    for axis in axes1 + axes2:
-        min1, max1 = project_vertices(axis, vertices1)
-        min2, max2 = project_vertices(axis, vertices2)
-
-        if not (min2 <= min1 <= max2 or min2 <= max1 <= max2
-                or min1 <= min2 <= max1 or min1 <= max2 <= max1):
-            return False
-    return True

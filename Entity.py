@@ -1,28 +1,19 @@
 from random import uniform
 
 import numpy as np
-import pyrr
 
 import GameConstants
+from Polygon import Polygon
 
 
-class Entity:
+class Entity(Polygon):
     game = None
 
-    def __init__(self, sides, radius, pos):
-        self.sides = sides
-        self.radius = radius
-        self.pos = pos
-        self.color = GameConstants.COLORS["BLACK"]
-        self.rotation = 0
+    def __init__(self, sides, radius, pos, dimensions, has_center_vertex):
+        super().__init__(sides, radius, pos, dimensions, has_center_vertex)
         self.collision_checked = False
         self.collisions = []
         self.active = True
-        self.basis_array = []
-        self._index_array = []
-        self.init_buffer_data()
-        self._vertex_value_array = self.calc_final_vertices()
-        super().__init__()
 
     def draw(self, renderer):
         raise NotImplementedError
@@ -30,91 +21,10 @@ class Entity:
     def update(self):
         raise NotImplementedError
 
-    def set_color(self, color):
-        self.color = GameConstants.COLORS[color]
-
-    def init_buffer_data(self):
-        # Define size of vertex and index array
-        # VertexArraySize is initially self.sides * 2 + 2 and filled with 2 coordinates.
-        # The final result is a flat list of x y values
-        num_of_vertex_values = self.sides * 2 + 2
-        num_of_indices = self.sides * 2 + 2
-        # Create vertex array
-        funcs = {0: np.cos, 1: np.sin}
-        vertices = [self.radius * funcs[i % 2](2 * np.pi * (i // 2) / self.sides)
-                    for i in range(num_of_vertex_values)]
-        vertices[-2], vertices[-1] = 0, 0  # Set last vertex as origin
-        # Create index array
-        indices = np.array([(i + 1) // 2 for i in range(num_of_indices)], dtype=np.uint32)
-        # Connect last vertex to origin, then connect last vertex to first real vertex
-        indices[-4], indices[-3], indices[-2], indices[-1] = (num_of_indices // 2 - 2), 0, 0, (num_of_indices // 2) - 1
-        self.basis_array = vertices
-        self._index_array = indices
-
-    # This method takes the basis vertices, adds the z dimension (necessary for transformation math), performs the trans
-    # /formation, and then removes the z dimension.
-    def calc_final_vertices(self, x_offset=0, y_offset=0, r_offset=0):
-        # If the object is a combatant, it will have a center vertex, which means the number of vertices it has will
-        # be sides + 1. The condition below assures that only combatants and bullets have the extra vertex.
-        if isinstance(self, (Combatant, Bullet)):
-            num_of_extra_vertices = 1
-        else:
-            num_of_extra_vertices = 0
-        model_tran = pyrr.matrix44.create_from_translation(np.array([self.pos[0] + x_offset, self.pos[1] + y_offset, 0],
-                                                                    dtype=np.float32))
-        model_rot = pyrr.matrix44.create_from_axis_rotation(np.array([0, 0, 1], dtype=np.float32),
-                                                            self.rotation + r_offset)
-        model_final = pyrr.matrix44.multiply(model_rot, model_tran)
-
-        #  Copy basis arrays (which are actually lists) to local var to avoid mutation.
-        vertex_value_list = self.basis_array.copy()
-        #  Add 0 to every third position to add a z axis
-        for i in range(len(vertex_value_list) // 2):  # VertexArraySize // 2 because that is our number of vertices
-            vertex_value_list.insert(i * 3 + 2, 0)
-        vertex_value_array = np.array(vertex_value_list, dtype=np.float32)
-        #  Resize array so that each item in vertex_value_array is a vec3
-        vertex_value_array = np.resize(vertex_value_array, (len(vertex_value_array) // 3, 3))
-        #  Apply transformation matrix on each vector
-        vertex_value_array = [pyrr.matrix44.apply_to_vector(model_final, vertex_value_array[i])
-                              for i in range(self.sides + num_of_extra_vertices)]
-        #  Remove the dummy z values
-        vertex_value_array = [vector[0:2] for vector in vertex_value_array]
-        #  Flatten list of arrays and return
-        return np.array(vertex_value_array).flatten()
-
-    # Include center vertex
-    def get_render_vertices(self):
-        return np.copy(self._vertex_value_array)
-
-    # Exclude center vertex. Use this when checking for collisions
-    def get_collision_vertices(self):
-        return np.copy(self._vertex_value_array[:-2])
-
-    def set_vertices(self, vertices):
-        self._vertex_value_array = np.copy(vertices)
-
-    def get_indices(self):
-        return np.copy(self._index_array)
-
-    def add_position(self, x, y, a=0):
-        self.pos = (self.pos[0] + x, self.pos[1] + y)
-        self.rotation += a
-
-    def set_position(self, axis, val):
-        x, y = self.pos
-        if axis == 1:
-            y = val
-        elif axis == 0:
-            x = val
-        self.pos = (x, y)
-
-    def get_position(self):
-        return np.array(self.pos)
-
 
 class Combatant(Entity):
     def __init__(self, sides, radius, pos, max_damage, max_health):
-        super(Combatant, self).__init__(sides, radius, pos)
+        super(Combatant, self).__init__(sides, radius, pos, None, True)
         self.bullets = []
         self.cannon_angle = None
         self.max_health = max_health
@@ -157,6 +67,7 @@ class Combatant(Entity):
     def check_status(self):
         if self.health <= 0:
             self.active = False
+
             """
             if not isinstance(self, Tank) and len(self.bullets) == 0:
                 self.active = False
@@ -168,6 +79,7 @@ class Combatant(Entity):
 class Tank(Combatant):
     def __init__(self, pos, max_health, max_damage, max_velocity):
         super().__init__(sides=3, radius=25, pos=pos, max_health=max_health, max_damage=max_damage)
+        self.has_center_vertex = True
         self.max_health = max_health
         self.health = self.max_health
         self.max_damage = max_damage
@@ -190,11 +102,12 @@ class Tank(Combatant):
 
 
 class Turret(Combatant):
-    def __init__(self, radius, pos, max_health, max_damage):
-        super().__init__(sides=10, radius=radius, pos=pos, max_health=max_health, max_damage=max_damage)
-        self.max_health = max_health
+    def __init__(self, pos):
+        super().__init__(sides=10, radius=25, pos=pos, max_health=100, max_damage=10)
+        self.has_center_vertex = True
+        self.max_health = 100
         self.health = self.max_health
-        self.max_damage = max_damage
+        self.max_damage = 10
         self.is_friendly = False
         self.ticks_since_attack = 0
 
@@ -225,7 +138,8 @@ class Turret(Combatant):
 
 class Bullet(Entity):
     def __init__(self, pos, angle, is_friendly, damage):
-        super().__init__(sides=8, radius=8, pos=pos)
+        super().__init__(sides=8, radius=8, pos=pos, dimensions=None, has_center_vertex=True)
+        self.has_center_vertex = True
         self.angle = angle
         self.is_friendly = is_friendly
         self.velocity = 10
@@ -246,9 +160,10 @@ class Bullet(Entity):
 
 class Barrier(Entity):
     def __init__(self, pos, width, height, rotation=0):
+        self.has_center_vertex = False
         self.width = width
         self.height = height
-        super().__init__(4, None, pos)
+        super().__init__(4, None, pos, [width, height], False)
         self.rotation = np.deg2rad(rotation)
         self.init_buffer_data()
         self._vertex_value_array = self.calc_final_vertices()

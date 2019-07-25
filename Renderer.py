@@ -1,8 +1,9 @@
 import pyrr
 from OpenGL.GL import *
 
-from Entity import Entity, Combatant
+from Entity import Combatant
 from GameConstants import *
+from Polygon import Polygon
 
 
 class Renderer:
@@ -51,7 +52,7 @@ class Renderer:
         glBindVertexArray(self.quadVAO)
         glDrawElements(GL_LINES, 2, GL_UNSIGNED_INT, None)
 
-    def draw_polygon(self, polygon: Entity):
+    def draw_polygon(self, polygon: Polygon):
         vertex_float_array = polygon.get_render_vertices()
         index_array = polygon.get_indices()
 

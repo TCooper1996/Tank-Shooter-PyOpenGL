@@ -1,7 +1,10 @@
+import sys
+
 from OpenGL.GL import *
 from cyglfw3 import *
 
 import GameConstants
+from Editor import Editor
 from Game import Game
 
 
@@ -11,23 +14,24 @@ def key_callback(window, key, _scancode, action, _mods):
 
     if 0 <= key < 1024:
         if action == PRESS:
-            game.Keys[key] = GL_TRUE
+            app.Keys[key] = GL_TRUE
         elif action == RELEASE:
-            game.Keys[key] = GL_FALSE
+            app.Keys[key] = GL_FALSE
 
 
 def mouse_button_callback(_window, button, action, _mods):
-    if button == MOUSE_BUTTON_LEFT:
-        if action == PRESS:
-            game.mouse_buttons[button] = GL_TRUE
-        elif action == RELEASE:
-            game.mouse_buttons[button] = GL_FALSE
+    if action == PRESS:
+        app.mouse_buttons[button] = GL_TRUE
+    elif action == RELEASE:
+        app.mouse_buttons[button] = GL_FALSE
 
 
 SCREEN_WIDTH = GameConstants.SCREEN_WIDTH
 SCREEN_HEIGHT = GameConstants.SCREEN_HEIGHT
-
-game = Game(SCREEN_WIDTH, SCREEN_HEIGHT)
+if len(sys.argv) > 1 and sys.argv[1] == "true":
+    app = Editor(SCREEN_WIDTH, SCREEN_HEIGHT)
+else:
+    app = Game(SCREEN_WIDTH, SCREEN_HEIGHT)
 
 
 def main():
@@ -49,28 +53,21 @@ def main():
     glLineWidth(2)
     glEnable(GL_MULTISAMPLE)
 
-    last_frame = float(0.0)
+    app.load_resources()
 
-    clear_color = [float(1) for _ in range(4)]
-
-    game.load_resources()
-
-    while game.active and not WindowShouldClose(window):
-        current_frame = GetTime()
-        delta_time = current_frame - last_frame
-        last_frame = current_frame
+    while app.active and not WindowShouldClose(window):
         PollEvents()
 
         # Process input
-        game.process_input(delta_time)
+        app.process_input()
         # Update state
-        game.update(delta_time, GetCursorPos(window))
+        app.update(GetCursorPos(window))
 
         # Clear screen
-        glClearColor(*clear_color)
+        glClearColor(1.0, 1.0, 1.0, 1.0)
         glClear(GL_COLOR_BUFFER_BIT)
         # Draw to screen
-        game.render()
+        app.render()
 
         SwapBuffers(window)
 
