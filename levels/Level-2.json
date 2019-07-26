@@ -1,5 +1,7 @@
 {
     "name": 2,
+    "enabled": true,
+    "macguffin": false,
     "entities": [
         [
             "Turret",

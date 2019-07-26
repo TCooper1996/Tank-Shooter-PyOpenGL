@@ -1,5 +1,7 @@
 {
   "name": "00",
+  "enabled": true,
+  "macguffin": false,
   "entities": [
     ["Turret", [500, 600]],
     ["Barrier", [300, 400], [400, 100], 0]

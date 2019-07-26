@@ -55,13 +55,19 @@ def main():
 
     app.load_resources()
 
+    last_frame = GetTime()
+    delta = 0
+
     while app.active and not WindowShouldClose(window):
+        delta = GetTime() - last_frame
+        last_frame = GetTime()
+
         PollEvents()
 
         # Process input
-        app.process_input()
+        app.process_input(delta)
         # Update state
-        app.update(GetCursorPos(window))
+        app.update(GetCursorPos(window), delta)
 
         # Clear screen
         glClearColor(1.0, 1.0, 1.0, 1.0)

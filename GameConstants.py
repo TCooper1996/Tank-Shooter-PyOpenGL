@@ -2,6 +2,11 @@ import numpy as np
 
 SCREEN_WIDTH = 1600
 SCREEN_HEIGHT = 1000
+SCREEN_MARGIN = 150
+EDITOR_TILE = 50
+MINI_TILE = 20
+
+MAX_ROOMS = 20
 
 # Below are the maximum x and y distances from the center of the screen in which a level transition will not trigger
 
@@ -9,6 +14,9 @@ MIN_X = 50
 MIN_Y = 50
 MAX_X = SCREEN_WIDTH - 50
 MAX_Y = SCREEN_HEIGHT - 50
+
+MAX_MAP_WIDTH = 5
+MAX_MAP_HEIGHT = 5
 
 # X or Y Distance from the origin that the player will be spawned in order of LEFT, DOWN, RIGHT, UP
 SPAWN_LIST = [

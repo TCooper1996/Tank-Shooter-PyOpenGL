@@ -13,41 +13,41 @@ class Game(Interface.Interface):
 
     def __init__(self, width, height):
         super().__init__(width, height)
-        self.player = Tank(pos=[300, 300], max_health=100, max_damage=50, max_velocity=5)
+        self.player = Tank(pos=[300, 300], max_health=100, max_damage=50, max_velocity=800)
         Game.game_state["entities"].append(self.player)
         Entity.game = self
 
     def load_resources(self):
         super().load_resources()
-        Game.game_state["world"] = generate_world(10)
+        Game.game_state["world"] = generate_world(GameConstants.MAX_ROOMS)
         load_level(-1)
 
-    def process_input(self):
+    def process_input(self, dt):
         world = Game.game_state["world"]
-        level = Game.game_state["level"]
+        level = world[Game.game_state["level"]]
 
-        if self.player.get_position()[0] > MAX_X and world.room_right(level):
+        if self.player.get_position()[0] > MAX_X and level.get_right():
             load_level(0)
             self.player.set_position(0, SPAWN_LIST[0])
 
-        elif self.player.get_position()[1] > MAX_Y and world.room_up(level):
+        elif self.player.get_position()[1] > MAX_Y and level.get_up():
             load_level(1)
             self.player.set_position(1, SPAWN_LIST[1])
 
-        elif self.player.get_position()[0] < MIN_X and world.room_left(level):
+        elif self.player.get_position()[0] < MIN_X and level.get_left():
             load_level(2)
             self.player.set_position(0, SPAWN_LIST[2])
 
-        elif self.player.get_position()[1] < MIN_Y and world.room_down(level):
+        elif self.player.get_position()[1] < MIN_Y and level.get_down():
             load_level(3)
             self.player.set_position(1, SPAWN_LIST[3])
 
-        velocity = self.player.max_velocity
+        velocity = self.player.max_velocity * dt
         next_x, next_y = 0, 0
         walk = self.Keys[KEY_W] != self.Keys[KEY_S]
         turn = self.Keys[KEY_A] != self.Keys[KEY_D]
         if walk or turn:
-            turn_angle = float(0.1) if turn else 0
+            turn_angle = float(3) * dt if turn else 0
             if self.Keys[KEY_D]:
                 turn_angle *= -1
             if self.Keys[KEY_S]:
@@ -59,7 +59,12 @@ class Game(Interface.Interface):
             new_vertices = self.player.calc_final_vertices(x_offset=next_x, y_offset=next_y, r_offset=turn_angle)
             collisions = [Interface.check_overlap(new_vertices, other.get_collision_vertices())
                           for other in Game.game_state["entities"] if self.player != other]
-            if not any(collisions):
+            wall_collision = False
+            for f in range(0, len(new_vertices), 2):
+                if not 0 <= new_vertices[f] <= GameConstants.SCREEN_WIDTH or \
+                        not 0 <= new_vertices[f + 1] <= GameConstants.SCREEN_HEIGHT:
+                    wall_collision = True
+            if not any(collisions) and not wall_collision:
                 self.player.set_vertices(new_vertices)
                 self.player.add_position(next_x, next_y, turn_angle)
 
@@ -75,7 +80,7 @@ class Game(Interface.Interface):
         if not self.mouse_buttons[MOUSE_BUTTON_LEFT]:
             self.mouse_locked = False
 
-    def update(self, mouse_position):
+    def update(self, mouse_position, dt):
         # Only update if game is not paused
         if not Game.game_state["paused"]:
             # Check player status
@@ -87,7 +92,7 @@ class Game(Interface.Interface):
             handle_collisions()
             for entity in Game.game_state["entities"]:
                 if entity.active:
-                    entity.update()
+                    entity.update(dt)
                 else:
                     Game.game_state["entities"].remove(entity)
                     del entity
@@ -96,6 +101,7 @@ class Game(Interface.Interface):
         if Game.game_state["paused"]:
             self.renderer.draw_map(Game.game_state["world"], Game.game_state["level"])
         else:
+            self.renderer.draw_map(Game.game_state["world"], Game.game_state["level"], True)
             for g in Game.game_state["entities"]:
                 g.draw(self.renderer)
 
@@ -108,6 +114,7 @@ def generate_world(max_rooms):
     return world
 
 
+# Direction param determines which level to load, the one of the right, top, left, or bottom.
 def load_level(direction):
     # Make sure the player is the first object created
     # Remove all current entities excepted player
@@ -128,6 +135,9 @@ def load_level(direction):
         level_list[0] -= 1
     elif direction == 3:
         level_list[1] -= 1
+    elif direction == -1:
+        level_list = [0, 0]
+
     Game.game_state["level"] = tuple(level_list)
     room = Game.game_state["world"][tuple(level_list)]
     with open("levels/" + room.get_design()) as level:
@@ -137,11 +147,14 @@ def load_level(direction):
         for entity in entities:
             class_name = entity[0]
             if class_name == "Turret":
-                Game.game_state["entities"].append(Turret(*entity[1:]))
+                entity_object = Turret(*entity[1:])
             elif class_name == "Barrier":
-                Game.game_state["entities"].append(Barrier(*entity[1:]))
+                entity_object = Barrier(*entity[1:])
+            elif class_name == "MacGuffin":
+                entity_object = MacGuffin(*entity[1:])
             else:
                 raise ValueError("Unknown class: {0}".format(class_name))
+            Game.game_state["entities"].append(entity_object)
 
 
 # TODO: Optimize handle_collisions; this looks ugly

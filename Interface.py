@@ -30,7 +30,7 @@ class Interface:
         ResourceManager.get_shader("sprite").set_matrix("projection", projection)
         self.renderer = Renderer(ResourceManager.get_shader("sprite"))
 
-    def process_input(self):
+    def process_input(self, dt):
         raise NotImplementedError("Illegal call to Interface.process_input(). This method must be overridden.")
 
     def render(self):

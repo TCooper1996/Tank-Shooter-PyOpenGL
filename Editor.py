@@ -2,9 +2,9 @@ import json
 from copy import deepcopy
 from os import listdir
 
-import numpy as np
 from cyglfw3 import *
 
+from GameConstants import *
 from Interface import Interface, check_overlap
 from Polygon import Polygon, EntityType
 
@@ -15,7 +15,8 @@ class Editor(Interface):
         super().__init__(width, height)
         turret = Polygon(EntityType.Turret, (25, 25))
         barrier = Polygon(EntityType.Barrier, (25, 25), [400, 100])
-        self.polygons = [turret, barrier]
+        macguffin = Polygon(EntityType.MacGuffin, (25, 25))
+        self.polygons = [turret, barrier, macguffin]
         self.selection_index = 0
         self.selected_polygon = deepcopy(self.polygons[self.selection_index])
         self.placed_polygons = []
@@ -30,7 +31,7 @@ class Editor(Interface):
         self.current_level_index = 0
         self.load_level(0)
 
-    def process_input(self):
+    def process_input(self, dt):
 
         if self.Keys[KEY_SPACE] and not self.key_locked:
             pass
@@ -108,7 +109,7 @@ class Editor(Interface):
         if not any(self.Keys):
             self.key_locked = False
 
-    def update(self, mouse_position):
+    def update(self, mouse_position, dt):
         self.hover_polygon = None
         self.mouse_position = (mouse_position[0], self.height - mouse_position[1])
         for p in self.placed_polygons:
@@ -117,10 +118,16 @@ class Editor(Interface):
                 self.hover_polygon = p
             else:
                 p.set_color("BLACK")
-        self.selected_polygon.set_position(0, self.mouse_position[0])
-        self.selected_polygon.set_position(1, self.mouse_position[1])
+
+        # Snap the selected polygon onto the grid, but keep it centered at the mouse position
+        selected_x = (self.mouse_position[0] // EDITOR_TILE) * EDITOR_TILE + EDITOR_TILE/2
+        selected_y = (self.mouse_position[1] // EDITOR_TILE) * EDITOR_TILE + EDITOR_TILE/2
+        self.selected_polygon.set_position(0, selected_x)
+        self.selected_polygon.set_position(1, selected_y)
 
     def render(self):
+        self.renderer.draw_grid()
+        self.renderer.draw_editor_controls()
         self.polygons[self.selection_index].draw(self.renderer)
         if self.show_selected:
             self.selected_polygon.draw(self.renderer)
@@ -148,6 +155,7 @@ class Editor(Interface):
         if name == "":
             name = len(listdir("levels"))
         data["name"] = name
+        data["enabled"] = True
 
         entities = []
         for entity in self.placed_polygons:
@@ -155,9 +163,11 @@ class Editor(Interface):
                 entities.append([entity.entity_type.name, list(entity.pos)])
             elif entity.entity_type == EntityType.Barrier:
                 entities.append([entity.entity_type.name, list(entity.pos), entity.dimensions, entity.rotation])
+            elif entity.entity_type == EntityType.MacGuffin:
+                entities.append([entity.entity_type.name, list(entity.pos)])
+                data["macguffin"] = True
             else:
                 raise NotImplemented("Editor.serialize_level given unknown EntityType: ", entity.EntityType)
-
         data["entities"] = entities
         filename = "levels/Level-%s.json" % name
         with open(filename, "w") as file:
@@ -175,11 +185,13 @@ class Editor(Interface):
                 polygon = Polygon(EntityType.Turret, entity[1])
             elif entity[0] == EntityType.Barrier.name:
                 polygon = Polygon(EntityType.Barrier, entity[1], entity[2], entity[3])
+            elif entity[0] == EntityType.MacGuffin.name:
+                polygon = Polygon(EntityType.MacGuffin, entity[1], entity[2])
             else:
                 raise KeyError("Unknown EntityType: %s" % entity[0])
             self.placed_polygons.append(polygon)
 
-        print("Level %d/%d loaded" % (index, len(listdir("levels"))-1))
+        print("Level %d/%d loaded" % (index + 1, len(listdir("levels"))))
 
     def load_next_level(self):
         if self.current_level_index + 1 == len(listdir("levels")):
