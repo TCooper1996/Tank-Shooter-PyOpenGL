@@ -25,22 +25,15 @@ class Game(Interface.Interface):
     def process_input(self, dt):
         world = Game.game_state["world"]
         level = world[Game.game_state["level"]]
+        funcs = (np.cos, np.sin)
 
-        if self.player.get_position()[0] > MAX_X and level.get_right():
-            load_level(0)
-            self.player.set_position(0, SPAWN_LIST[0])
+        for dir in range(4):
+            dist = (np.array(self.player.get_position()) - np.array([SCREEN_WIDTH/2, SCREEN_HEIGHT/2]))[dir % 2]
+            if dist * funcs[dir % 2](dir*np.pi/2) > MAXS[dir % 2] and level.get_exit(dir):
+                load_level(dir)
+                self.player.set_position(dir % 2, SPAWN_LIST[dir])
+                break
 
-        elif self.player.get_position()[1] > MAX_Y and level.get_up():
-            load_level(1)
-            self.player.set_position(1, SPAWN_LIST[1])
-
-        elif self.player.get_position()[0] < MIN_X and level.get_left():
-            load_level(2)
-            self.player.set_position(0, SPAWN_LIST[2])
-
-        elif self.player.get_position()[1] < MIN_Y and level.get_down():
-            load_level(3)
-            self.player.set_position(1, SPAWN_LIST[3])
 
         velocity = self.player.max_velocity * dt
         next_x, next_y = 0, 0

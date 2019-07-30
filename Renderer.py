@@ -80,13 +80,13 @@ class Renderer:
             background_float_array += [x, y, x, y + h, x + w, y + h, x + w, y]
             # If a room is connected to the right, top, left, bottom of the current room, don't draw an edge.
             # If not, draw an edge.
-            if not room.get_right():
+            if not room.get_exit(0):
                 outline_float_array += [x + w, y, x + w, y + h]
-            if not room.get_up():
+            if not room.get_exit(1):
                 outline_float_array += [x, y + h, x + w, y + h]
-            if not room.get_left():
+            if not room.get_exit(2):
                 outline_float_array += [x, y + h, x, y]
-            if not room.get_down():
+            if not room.get_exit(3):
                 outline_float_array += [x, y, x + w, y]
             #if level == current_level:
             #    outline_float_array += [x, y, x + w, y + h, x, y + h, x + w, y]

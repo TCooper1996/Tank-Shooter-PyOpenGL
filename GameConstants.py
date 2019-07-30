@@ -6,14 +6,16 @@ SCREEN_MARGIN = 150
 EDITOR_TILE = 50
 MINI_TILE = 20
 
-MAX_ROOMS = 20
+MAX_ROOMS = 30
 
 # Below are the maximum x and y distances from the center of the screen in which a level transition will not trigger
 
 MIN_X = 50
 MIN_Y = 50
-MAX_X = SCREEN_WIDTH - 50
-MAX_Y = SCREEN_HEIGHT - 50
+MAXS = [
+    (SCREEN_WIDTH - 120)/2,
+    (SCREEN_HEIGHT - 120)/2
+]
 
 MAX_MAP_WIDTH = 5
 MAX_MAP_HEIGHT = 5
