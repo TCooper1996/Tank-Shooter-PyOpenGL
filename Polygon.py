@@ -12,6 +12,7 @@ class EntityType(Enum):
     Tank = 2,
     Bullet = 3,
     MacGuffin = 4,
+    Sniper = 5
 
 
 # Polygon class defines all functionality for an object to be drawn. Entity will inherit from this class to draw
@@ -38,6 +39,9 @@ class Polygon:
         elif entity_type == EntityType.MacGuffin:
             self.sides = 5
             self.radius = 25
+        elif entity_type == EntityType.Sniper:
+            self.sides = 6
+            self.radius = 35
         else:
             ValueError("Unknown entity_type:%s" % entity_type)
         self.color = GameConstants.COLORS["BLACK"]

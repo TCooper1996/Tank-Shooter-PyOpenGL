@@ -34,7 +34,7 @@ COLORS = {"RED": np.array([1, 0, 0], dtype=np.float32),
           "BLUE": np.array([0, 0, 1], dtype=np.float32),
           }
 
-HEALTH_BAR_COORDINATES = [0, -25, 0, -35, 60, -35, 60, -25]
+HEALTH_BAR_COORDINATES = [0, None, 0, None, 60, None, 60, None]
 
 TILE_WIDTH = 50
 TILE_HEIGHT = 50

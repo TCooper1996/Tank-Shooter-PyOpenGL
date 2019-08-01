@@ -26,7 +26,8 @@ class Combatant(Entity):
     def __init__(self, entity_type, pos, rotation, max_damage, max_health):
         super(Combatant, self).__init__(entity_type, pos, None, rotation)
         self.bullets = []
-        self.cannon_angle = None
+        self.cannon_angle = 0
+        self.projectile_vel = 700
         self.max_health = max_health
         self.health = self.max_health
         self.max_damage = max_damage
@@ -40,7 +41,7 @@ class Combatant(Entity):
         if self.health > 0:
             renderer.draw_polygon(self)
         if self.cannon_angle is None:
-            pass  # raise ValueError("Cannon angle has no been set.")
+            pass  # raise ValueError("Cannon angle has not been set.")
         else:
             renderer.draw_cannon(self.pos, self.cannon_angle)
 
@@ -71,7 +72,7 @@ class Combatant(Entity):
 
 class Tank(Combatant):
     def __init__(self, pos, max_health, max_damage, max_velocity, rotation=0):
-        super().__init__(EntityType.Tank, pos=pos, rotation=rotation, max_health=max_health, max_damage=max_damage)
+        super().__init__(entity_type=EntityType.Tank, pos=pos, rotation=rotation, max_health=max_health, max_damage=max_damage)
         self.has_center_vertex = True
         self.max_health = max_health
         self.health = self.max_health
@@ -79,6 +80,7 @@ class Tank(Combatant):
         self.damage = max_damage
         self.max_velocity = max_velocity
         self.is_friendly = True
+        self.vel = [0, 0]
 
     def draw(self, renderer):
         super().draw(renderer)
@@ -95,13 +97,14 @@ class Tank(Combatant):
 
 
 class Turret(Combatant):
-    def __init__(self, pos):
-        super().__init__(EntityType.Turret, pos=pos, max_health=100, max_damage=10, rotation=0)
+    def __init__(self, pos, entity_type=EntityType.Turret):
+        super().__init__(entity_type, pos=pos, max_health=100, max_damage=10, rotation=0)
         self.has_center_vertex = True
         self.max_health = 100
         self.health = self.max_health
         self.max_damage = 10
         self.is_friendly = False
+        self.attack_time = 2
         self.time_since_attack = 0
 
     def draw(self, renderer):
@@ -115,27 +118,92 @@ class Turret(Combatant):
             self.time_since_attack += dt
             # Set cannon angle
             player_pos = self.game.get_player().pos
-            x_distance = player_pos[0] - self.pos[0]
-            y_distance = player_pos[1] - self.pos[1]
-            self.cannon_angle = np.arctan2(y_distance, x_distance)
+            coor = player_pos - self.get_position()
+            self.cannon_angle = np.arctan2(coor[1], coor[0])
+            # Adjust attack speed based on player proximity
+            dist = np.linalg.norm(coor)
+            if dist < 500:
+                scale = dist/6
+                self.attack_time = np.log10(scale)
+                self.color = (1 - dist/600, 0, 0, 1)
+            else:
+                self.attack_time = 2
+                self.set_color("BLACK")
             # Attack
             self.attack()
 
     def attack(self):
-        if self.time_since_attack >= 5:
+        if self.time_since_attack >= self.attack_time:
             self.time_since_attack = 0
             for i in range(5):
                 bullet_direction = self.cannon_angle + uniform(-np.pi/8, np.pi/8)
-                self.bullets.append(Bullet(self.pos, bullet_direction, False, self.damage))
+                self.bullets.append(Bullet(self.pos, bullet_direction, False, self.damage, self.projectile_vel))
+
+
+class SniperTurret(Turret):
+    def __init__(self, pos):
+        super(SniperTurret, self).__init__(pos, EntityType.Sniper)
+        self.rotation_speed = 1
+        self.max_damage = 50
+        self.attack_time = 5
+        self.projectile_vel = 1700
+        self.player_vel = [0, 0]
+        self.target_position = [0, 0]
+        self.player_distance = 0
+
+    def draw(self, renderer):
+        super().draw(renderer)
+        renderer.draw_dotted_line(self.pos, self.cannon_angle, self.player_distance)
+
+    def update(self, dt):
+        super(Turret, self).update(dt)
+        if self.health > 0:
+            self.time_since_attack += dt
+            player = self.game.get_player()
+            r_pos = player.get_position() - self.pos
+            self.player_distance = np.linalg.norm(r_pos)
+            self.target_position = self.get_predicted_position(r_pos, player.vel)
+            p_angle = np.arctan2(self.target_position[1], self.target_position[0])
+            if abs(p_angle - self.cannon_angle) > 0.1:
+                if p_angle < self.cannon_angle:
+                    self.cannon_angle -= self.rotation_speed * dt
+                elif p_angle > self.cannon_angle:
+                    self.cannon_angle += self.rotation_speed * dt
+            else:
+                self.cannon_angle = p_angle
+            self.attack()
+
+    def attack(self):
+        if self.time_since_attack >= self.attack_time:
+            self.time_since_attack = 0
+            self.bullets.append(Bullet(self.pos, self.cannon_angle, False, self.damage, self.projectile_vel))
+
+    def get_predicted_position(self, pos, vel):
+        # All values are relative
+        pos = np.array(pos)
+        vel = np.array(vel) + 3
+        # The following variables are the coefficients for the quadratic formula; d=discriminant
+        a = self.projectile_vel**2 - vel[0] * vel[0] + vel[1] * vel[1]
+        b = pos[0] * vel[0] + pos[1] * vel[1]
+        c = pos[0] * pos[0] + pos[1] * pos[1]
+        d = b**2 + a*c
+        t = 0
+        if d >= 0:
+            t = (b + np.sqrt(d)) / a
+            if t < 0:
+                t = 0
+
+        return pos + vel * t
+
 
 
 class Bullet(Entity):
-    def __init__(self, pos, angle, is_friendly, damage):
+    def __init__(self, pos, angle, is_friendly, damage, vel=700):
         super().__init__(EntityType.Bullet, pos=pos, dimensions=None)
         self.has_center_vertex = True
         self.angle = angle
         self.is_friendly = is_friendly
-        self.velocity = 700
+        self.velocity = vel
         self.damage = damage
 
     def draw(self, renderer):

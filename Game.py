@@ -13,7 +13,7 @@ class Game(Interface.Interface):
 
     def __init__(self, width, height):
         super().__init__(width, height)
-        self.player = Tank(pos=[300, 300], max_health=100, max_damage=50, max_velocity=800)
+        self.player = Tank(pos=[300, 300], max_health=10000, max_damage=50, max_velocity=300)
         Game.game_state["entities"].append(self.player)
         Entity.game = self
 
@@ -26,6 +26,7 @@ class Game(Interface.Interface):
         world = Game.game_state["world"]
         level = world[Game.game_state["level"]]
         funcs = (np.cos, np.sin)
+        self.player.vel = [0, 0]
 
         for dir in range(4):
             dist = (np.array(self.player.get_position()) - np.array([SCREEN_WIDTH/2, SCREEN_HEIGHT/2]))[dir % 2]
@@ -34,8 +35,7 @@ class Game(Interface.Interface):
                 self.player.set_position(dir % 2, SPAWN_LIST[dir])
                 break
 
-
-        velocity = self.player.max_velocity * dt
+        velocity = self.player.max_velocity
         next_x, next_y = 0, 0
         walk = self.Keys[KEY_W] != self.Keys[KEY_S]
         turn = self.Keys[KEY_A] != self.Keys[KEY_D]
@@ -46,8 +46,10 @@ class Game(Interface.Interface):
             if self.Keys[KEY_S]:
                 velocity *= -1
             if walk:
-                next_x = np.cos(self.player.rotation) * velocity
-                next_y = np.sin(self.player.rotation) * velocity
+                self.player.vel[0] = np.cos(self.player.rotation) * velocity
+                self.player.vel[1] = np.sin(self.player.rotation) * velocity
+                next_x = self.player.vel[0] * dt
+                next_y = self.player.vel[1] * dt
 
             new_vertices = self.player.calc_final_vertices(x_offset=next_x, y_offset=next_y, r_offset=turn_angle)
             collisions = [Interface.check_overlap(new_vertices, other.get_collision_vertices())
@@ -73,12 +75,14 @@ class Game(Interface.Interface):
         if not self.mouse_buttons[MOUSE_BUTTON_LEFT]:
             self.mouse_locked = False
 
-    def update(self, mouse_position, dt):
+    def update(self, mouse_position, dt, time):
+        self.renderer.time = time
         # Only update if game is not paused
         if not Game.game_state["paused"]:
             # Check player status
             if not self.player.active:
                 self.active = False
+                print("Game over. Player has died")
             # Get correct mouse position
             self.mouse_position = (mouse_position[0], self.height - mouse_position[1])
             Game.game_state["player_position"] = self.player.pos
@@ -145,6 +149,8 @@ def load_level(direction):
                 entity_object = Barrier(*entity[1:])
             elif class_name == "MacGuffin":
                 entity_object = MacGuffin(*entity[1:])
+            elif class_name == "Sniper":
+                entity_object = SniperTurret(*entity[1:])
             else:
                 raise ValueError("Unknown class: {0}".format(class_name))
             Game.game_state["entities"].append(entity_object)

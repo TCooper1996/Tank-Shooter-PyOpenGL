@@ -15,8 +15,9 @@ class Editor(Interface):
         super().__init__(width, height)
         turret = Polygon(EntityType.Turret, (25, 25))
         barrier = Polygon(EntityType.Barrier, (25, 25), [400, 100])
+        sniper = Polygon(EntityType.Sniper, (35, 35))
         macguffin = Polygon(EntityType.MacGuffin, (25, 25))
-        self.polygons = [turret, barrier, macguffin]
+        self.polygons = [turret, barrier, macguffin, sniper]
         self.selection_index = 0
         self.selected_polygon = deepcopy(self.polygons[self.selection_index])
         self.placed_polygons = []
@@ -109,7 +110,7 @@ class Editor(Interface):
         if not any(self.Keys):
             self.key_locked = False
 
-    def update(self, mouse_position, dt):
+    def update(self, mouse_position, dt, _time):
         self.hover_polygon = None
         self.mouse_position = (mouse_position[0], self.height - mouse_position[1])
         for p in self.placed_polygons:
@@ -156,6 +157,7 @@ class Editor(Interface):
             name = len(listdir("levels"))
         data["name"] = name
         data["enabled"] = True
+        data["macguffin"] = False
 
         entities = []
         for entity in self.placed_polygons:
@@ -166,6 +168,8 @@ class Editor(Interface):
             elif entity.entity_type == EntityType.MacGuffin:
                 entities.append([entity.entity_type.name, list(entity.pos)])
                 data["macguffin"] = True
+            elif entity.entity_type == EntityType.Sniper:
+                entities.append([entity.entity_type.name, list(entity.pos)])
             else:
                 raise NotImplemented("Editor.serialize_level given unknown EntityType: ", entity.EntityType)
         data["entities"] = entities
@@ -186,7 +190,9 @@ class Editor(Interface):
             elif entity[0] == EntityType.Barrier.name:
                 polygon = Polygon(EntityType.Barrier, entity[1], entity[2], entity[3])
             elif entity[0] == EntityType.MacGuffin.name:
-                polygon = Polygon(EntityType.MacGuffin, entity[1], entity[2])
+                polygon = Polygon(EntityType.MacGuffin, entity[1])
+            elif entity[0] == EntityType.Sniper.name:
+                polygon = Polygon(EntityType.Sniper, entity[1])
             else:
                 raise KeyError("Unknown EntityType: %s" % entity[0])
             self.placed_polygons.append(polygon)

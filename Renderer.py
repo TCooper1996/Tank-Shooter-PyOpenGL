@@ -1,7 +1,7 @@
 import pyrr
 from OpenGL.GL import *
 
-from Entity import Combatant
+from Entity import Combatant, Turret
 from GameConstants import *
 from Polygon import Polygon, EntityType
 
@@ -12,10 +12,9 @@ class Renderer:
         self.quadVAO = -1
         self.VBO = -1
         self.IBO = -1
-        self.cannonIBO = -1
-        self.quadIBO = -1
         self.init_render_data()
         self.mouse_position = (None, None)
+        self.time = None
 
     def draw_editor_controls(self):
         glBindVertexArray(self.quadVAO)
@@ -49,9 +48,7 @@ class Renderer:
         glBindBuffer(GL_ARRAY_BUFFER, self.VBO)
         glBufferData(GL_ARRAY_BUFFER, np.array(vertex_float_list, dtype=np.float32), GL_DYNAMIC_DRAW)
 
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, self.quadIBO)
-
-        glDrawElements(GL_LINES, 8, GL_UNSIGNED_INT, None)
+        glDrawArrays(GL_LINE_LOOP, 0, 4)
 
     def draw_map(self, map_dict, current_level: (int, int), is_mini=False):
         # Prepend the list of levels with the tuple of the current level.
@@ -88,8 +85,6 @@ class Renderer:
                 outline_float_array += [x, y + h, x, y]
             if not room.get_exit(3):
                 outline_float_array += [x, y, x + w, y]
-            #if level == current_level:
-            #    outline_float_array += [x, y, x + w, y + h, x, y + h, x + w, y]
         glBindVertexArray(self.quadVAO)
         glBindBuffer(GL_ARRAY_BUFFER, self.VBO)
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, self.IBO)
@@ -109,6 +104,26 @@ class Renderer:
         glBufferData(GL_ARRAY_BUFFER, np.array(outline_float_array, dtype=np.float32), GL_DYNAMIC_DRAW)
         glDrawArrays(GL_LINES, 0, len(outline_float_array))
 
+    def draw_dotted_line(self, pos: (int, int), cannon_angle: float, distance: float):
+        num_of_dots = 100
+        vertex_float_array = []
+        offset = int(((self.time * 10) % 10))
+
+        for i in range(offset, num_of_dots, 10):
+            vertex_float_array.append(pos[0] + np.cos(cannon_angle) * distance * i/num_of_dots)
+            vertex_float_array.append(pos[1] + np.sin(cannon_angle) * distance * i/num_of_dots)
+
+        glBindVertexArray(self.quadVAO)
+        glBindBuffer(GL_ARRAY_BUFFER, self.VBO)
+        glBufferData(GL_ARRAY_BUFFER, np.array(vertex_float_array, dtype=np.float32), GL_DYNAMIC_DRAW)
+        glDrawArrays(GL_POINTS, 0, num_of_dots)
+
+    def draw_lines(self, pos):
+        vertex_float_array = np.array([0, pos[1], SCREEN_WIDTH, pos[1], pos[0], 0, pos[0], SCREEN_HEIGHT], dtype=np.float32)
+        glBindVertexArray(self.quadVAO)
+        glBindBuffer(GL_ARRAY_BUFFER, self.VBO)
+        glBufferData(GL_ARRAY_BUFFER, vertex_float_array, GL_DYNAMIC_DRAW)
+        glDrawArrays(GL_LINES, 0, 8)
 
     def draw_cannon(self, pos, cannon_angle):
         cannon_float_array = np.array([
@@ -122,10 +137,7 @@ class Renderer:
         glBindBuffer(GL_ARRAY_BUFFER, self.VBO)
         glBufferData(GL_ARRAY_BUFFER, cannon_float_array, GL_DYNAMIC_DRAW)
 
-        # Configure cannon IBO
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, self.cannonIBO)
-
-        glDrawElements(GL_LINES, 2, GL_UNSIGNED_INT, None)
+        glDrawArrays(GL_LINES, 0, 2)
 
     def draw_polygon(self, polygon: Polygon):
         vertex_float_array = polygon.get_render_vertices()
@@ -144,15 +156,20 @@ class Renderer:
             glBufferData(GL_ARRAY_BUFFER, direction_line, GL_DYNAMIC_DRAW)
             glDrawArrays(GL_LINES, 0, 2)
 
-
-
         # Draw health bar for combatants
         if isinstance(polygon, Combatant):
+            rad = polygon.radius
             # The hardcoded values below are meant to be relative to the object being draw.
             vertex_float_array = HEALTH_BAR_COORDINATES.copy()
+            # Fill in y values based on polygon size
+            vertex_float_array[1] = -(rad + 5)
+            vertex_float_array[3] = -(rad + 15)
+            vertex_float_array[5] = -(rad + 15)
+            vertex_float_array[7] = -(rad + 5)
+
             # Proportionally scale length of health bar by health
             vertex_float_array[4] *= polygon.health / polygon.max_health
-            vertex_float_array[6] *= polygon.health / polygon.max_health
+            vertex_float_array[6] = vertex_float_array[4]
             # Increase all x values by objects x, and also subtract 30, so that the centers match up
             for i in range(0, 8, 2):
                 vertex_float_array[i] += polygon.pos[0] - 30
@@ -162,23 +179,29 @@ class Renderer:
             vertex_float_array = np.array(vertex_float_array, dtype=np.float32)
 
             glBufferData(GL_ARRAY_BUFFER, vertex_float_array, GL_DYNAMIC_DRAW)
-            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, self.quadIBO)
-            glDrawElements(GL_LINES, 8, GL_UNSIGNED_INT, None)
+            glDrawArrays(GL_LINE_LOOP, 0, 4)
+
+            # Draw attack bar
+            if isinstance(polygon, Turret):
+                vertex_float_array = [-(rad + 10), -rad, -(rad + 10), 0,
+                                      -(rad + 5), 0, -(rad + 5), -rad]
+                vertex_float_array[3] = (polygon.time_since_attack / polygon.attack_time) * rad*2 - rad
+                vertex_float_array[5] = vertex_float_array[3]
+                for i in range(0, 8, 2):
+                    vertex_float_array[i] += polygon.pos[0]
+                    vertex_float_array[i+1] += polygon.pos[1]
+            vertex_float_array = np.array(vertex_float_array, dtype=np.float32)
+
+            glBufferData(GL_ARRAY_BUFFER, vertex_float_array, GL_DYNAMIC_DRAW)
+            glDrawArrays(GL_LINE_LOOP, 0, 4)
 
     def init_render_data(self):
         self.quadVAO = glGenVertexArrays(1)
         self.VBO = glGenBuffers(1)
         self.IBO = glGenBuffers(1)
-        self.quadIBO = glGenBuffers(1)
-        self.cannonIBO = glGenBuffers(1)
 
         glBindVertexArray(self.quadVAO)
         glBindBuffer(GL_ARRAY_BUFFER, self.VBO)
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, self.cannonIBO)
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER, np.array([0, 1], dtype=np.uint32), GL_STATIC_DRAW)
-
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, self.quadIBO)
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER, np.array([0, 1, 1, 2, 2, 3, 3, 0], dtype=np.uint32), GL_STATIC_DRAW)
 
         glEnableVertexAttribArray(0)
         glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(GLfloat), None)

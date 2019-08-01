@@ -1,6 +1,6 @@
 {
     "name": "1",
-    "enabled": true,
+    "enabled": false,
     "macguffin": false,
     "entities": [
         [
@@ -28,6 +28,13 @@
                 100
             ],
             1.5707963267948966
+        ],
+        [
+            "Sniper",
+            [
+                225.0,
+                525.0
+            ]
         ]
     ]
 }

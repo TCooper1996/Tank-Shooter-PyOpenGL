@@ -1,11 +1,33 @@
 {
-  "name": "00",
-  "enabled": true,
-  "macguffin": false,
-  "entities": [
-    ["Turret", [500, 600]],
-    ["Barrier", [300, 400], [400, 100], 0]
-    
-  ]
-
+    "name": "00",
+    "enabled": true,
+    "macguffin": false,
+    "entities": [
+        [
+            "Barrier",
+            [
+                575.0,
+                575.0
+            ],
+            [
+                400,
+                100
+            ],
+            0.0
+        ],
+        [
+            "Sniper",
+            [
+                175.0,
+                475.0
+            ]
+        ],
+        [
+            "Turret",
+            [
+                1025.0,
+                475.0
+            ]
+        ]
+    ]
 }

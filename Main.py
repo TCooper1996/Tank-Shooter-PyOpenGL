@@ -52,6 +52,8 @@ def main():
 
     glLineWidth(2)
     glEnable(GL_MULTISAMPLE)
+    glEnable(GL_PROGRAM_POINT_SIZE)
+    glPointSize(4)
 
     app.load_resources()
 
@@ -67,7 +69,7 @@ def main():
         # Process input
         app.process_input(delta)
         # Update state
-        app.update(GetCursorPos(window), delta)
+        app.update(GetCursorPos(window), delta, GetTime())
 
         # Clear screen
         glClearColor(1.0, 1.0, 1.0, 1.0)
